@@ -1,155 +1,125 @@
 ---
 name: fill-rfp-matrix
-description: Fill an RFP compliance matrix with Spare-voiced responses. Use when the user asks to "fill the RFP matrix," "respond to the compliance matrix," "draft RFP responses," "answer the requirements matrix," "fill out the spec sheet," or references an incoming `.xlsx` or `.csv` compliance matrix from a transit agency RFP. Also trigger when the user uploads a matrix file and asks for help answering it.
+description: Fill an RFP compliance matrix with Spare-voiced responses, sourced row-by-row from past RFP responses in Google Drive and the Spare documentation MCP. Use when the user asks to "fill the RFP matrix," "respond to the compliance matrix," "draft RFP responses," "answer the requirements matrix," "fill out the spec sheet," or references an incoming `.xlsx` or `.csv` compliance matrix from a transit agency RFP. Also trigger when the user uploads a matrix file and asks for help answering it.
 ---
 
 # Fill RFP Matrix
 
-Draft Spare's responses to a transit-agency RFP compliance matrix. The deliverable is the agency's matrix file, filled in the agency's own schema, with two internal-only columns added for the SE to review before stripping and submitting.
+Draft Spare's responses to a transit-agency RFP compliance matrix. Every verdict and every comment is sourced from live evidence. The deliverable is the agency's matrix file, filled in the agency's own schema, with internal columns added for the SE to review before stripping and submitting.
+
+## The rule that beats every other rule
+
+**Never make a scope judgment without a source.** Do not output "this isn't a Spare deal" or equivalent language at any level, not per-row, not per-section, not per-matrix. Do not refuse to draft on category grounds. Do not assume a requirement is out of scope because the RFP is labeled EAM, asset management, CAD/AVL, fare, or anything else. Spare's product catalog is broad and updates frequently; the only trustworthy way to determine what Spare supports is to query the live sources for the specific requirement in front of you.
+
+If after searching all sources you cannot find evidence one way or the other, the verdict is `I` (Need More Info) or the agency's equivalent, with reasoning that explains exactly which sources were searched and what was found. Never guess.
 
 ## Before drafting any row
 
-Do all five of these before writing a single answer. Skipping them produces inconsistent, hard-to-trust output, the exact problem this skill exists to fix.
-
 ### 1. Load deal context
 
-Before drafting, check the session working directory for a file named `<agency>-deal-context.md` produced by the companion `extract-deal-context` skill. If present, load it; every row draft should reference fields from it (adjacent systems, fleet snapshot, scope restrictions, competitive signals).
-
-If no deal-context file exists, run `extract-deal-context` first. Do not draft blindly. Ask the user for the agency's RFP PDF if they haven't attached it, then run that skill to produce the artifact.
-
-The deal-context artifact contains at minimum: agency identity, fleet/operations snapshot, financials and scope, adjacent systems the agency has or is procuring (the highest-value section for drafting), timeline, scope restrictions, competitive signals, and risk/fit notes.
+Check the session working directory for a `<agency>-deal-context.md` file produced by the companion `extract-deal-context` skill. If present, load it. If not, run `extract-deal-context` first on the agency's RFP PDF.
 
 ### 2. Detect the matrix schema
 
-Open the matrix file and identify:
-
-- **Requirement column**, the text of each question
-- **Verdict column**, the compliance verdict (vocabulary varies per agency)
-- **Comment/Response column**, the prose response
-- **Any Support/Module/Phase columns**, often required alongside the verdict
-- **Section-header rows**, rows with text in the requirement column but no expected verdict/comment (e.g., `3.1 Fleet Operations`, `Monitoring and Diagnostics`). Leave these untouched.
-
-Verdict vocabulary is agency-specific. Look for it in:
-1. A hidden "Response Options," "Dropdown," or "Instructions" sheet
-2. The rows between the title and the data (e.g., MTD defines `Y / Y-ND / N / I` in rows 5–8 before the requirement data starts at row 19)
-3. The data validation dropdown on the verdict column
-
-Never assume a verdict vocabulary. Read it from the file.
-
-Common vocabularies observed across agencies:
-
-| Agency | Verdict set |
-|---|---|
-| HOLON | `Yes / No / Mod` |
-| BC Transit | `Yes / No / Other` |
-| GRT (MobilityPLUS) | `Fully Meet – Configuration only / Fully Meet – Customization required / Partially Meet – Configuration only / Partially Meet – Customization required / Unable` |
-| MTD | `Y / Y-ND / N / I` (plus `F / E` qualifier on Y-ND) |
-| Laramie | `Y / N / P` (Partial) |
-| PDRTA | no verdict column, prose only |
+Identify the requirement column, the verdict column, the comment column, and the agency's verdict vocabulary. Verdict vocabulary lives in hidden sheets, header-row blocks, or data-validation dropdowns; read it from the file, never assume. See `references/schema-detection.md` for detection logic and observed agency layouts.
 
 ### 3. Pre-flight scan for stray values
 
-Before filling anything, scan the verdict and comment columns across the full requirement range. Agencies frequently leave:
-
-- Numeric scores or priority rankings from internal reviewers (e.g., MTD had `4` and `1` sitting in the Comments column of rows 19–24 before any proposer touched it)
-- Draft text notes (`"custom field"`, `"TBD"`, `"see appendix"`)
-- Previous-vendor placeholder data
-
-Clear these explicitly on every row you are going to fill, AND on rows you are leaving unfilled (so it's unambiguous what's your answer versus leftover agency junk). For unfilled rows, leave them visibly blank or mark them `[NOT YET ANSWERED]` if the user asks for a partial fill.
+Scan the verdict and comment columns across the full requirement range for pre-existing agency annotations (numeric scores, draft notes, previous-vendor placeholders). Clear them on every row you will fill and on every row you leave unfilled, so the submitted file is unambiguous.
 
 ### 4. Isolate template formatting
 
-Template cells often carry inherited font styling (bold, italic, color) that openpyxl silently preserves when you write a value. Every cell you write must explicitly set `Font(bold=False, name="Calibri", size=11)` (or match the template's visible font). Otherwise answers will look different from their neighbors.
-
-Set `Alignment(wrap_text=True, vertical="top")` on every comment cell so long prose wraps correctly.
+Every cell you write must explicitly set `Font(bold=False, name="Calibri", size=11)` and `Alignment(wrap_text=True, vertical="top")` on comment cells. openpyxl silently preserves inherited styling otherwise.
 
 ### 5. Add the internal review columns
 
 At the right edge of the matrix (two columns past the last agency-defined column), add:
 
-- **Column header: `Internal Confidence (strip before submit)`**, values `High` / `Medium` / `Low`, color-coded green/yellow/red
-- **Column header: `Internal Reasoning / Sources (strip before submit)`**, plain text listing which past RFP row, Spare doc page, or Notion/Glean hit backed the answer, plus any caveats
+- `Internal Confidence (strip before submit)`, `High` / `Medium` / `Low`, color-coded green/yellow/red
+- `Internal Reasoning / Sources (strip before submit)`, plain text listing the specific past RFP row, doc URL, or Notion/Glean hit that backs each answer
 
-Use yellow-highlighted bold headers for both so they visually read as internal metadata. The SE will strip these columns before submitting the matrix to the agency.
+Yellow-highlighted bold headers. These columns exist so the SE can audit sourcing quickly. A row with no citation in the reasoning column is a bug.
 
 ## Drafting each row
 
-### Search order for every row
+### Mandatory search sequence per row
 
-Before writing an answer, do the searches below in order. Stop when you have a confident answer.
+Every row must go through this sequence before a verdict is assigned. You cannot skip steps. You cannot answer from general knowledge or from this plugin's reference files alone.
 
-1. **Past RFP responses in Google Drive.** This is the highest-leverage source. Prior completed matrices have been through internal review and Spare has committed to the answers. If a near-identical requirement has been answered before, reuse the language with minor adjustments for the new agency's deal context. Recent EAM-focused precedents live in folders like `EAM RFP - March 2026` and in files named `<Agency> - Spare EAM Response Matrix`.
-2. **Spare documentation MCP.** Authoritative source for what's in the generally-available product. Good for specific feature claims (custom fields, Open API, mobile app capabilities). Less useful for capability-gap questions.
-3. **Notion and Glean.** For roadmap items, product decisions, known limitations, and tribal SE knowledge that hasn't made it to public docs.
+**Step 1: Search past RFP responses in Google Drive.** This is the highest-leverage source. A near-identical requirement that Spare has answered before is the strongest possible evidence; it has been through internal review, legal, and commercial sign-off. Search by keyword from the requirement text. Recent completed matrices live in folders named like `<Agency> RFP - Spare EAM Response Matrix`, `Spare's Master Sample RFP Tech Spec Requirements`, `EAM RFP - March 2026`, and similar patterns. Favor responses from the last 12 months over older ones.
+
+**Step 2: Search the Spare documentation MCP.** Authoritative current state of the product. Run keyword searches (`search_spare_documentation`), then read specific `/sales-enablement/*.mdx`, `/customer-enablement/*.mdx`, and `/internal-changelog/*.mdx` pages that look relevant. The Spring 2026 release and the ongoing changelog pages describe what ships now. Always check the changelog for the product area before committing to a "not available" claim; Spare ships frequently and what was absent in a past RFP may now be generally available.
+
+**Step 3: If still ambiguous, search Notion and Glean.** Notion carries internal product context, roadmap, and team knowledge. Glean indexes Slack history, Gong transcripts, Klue battlecards, and cross-source tribal knowledge. Useful for resolving ambiguity or finding a specific SME's recent note.
+
+**Step 4: Only if all three sources come up empty, the verdict is `I` (Need More Info) in the agency's equivalent vocabulary.** Do not default to `N`. An absent source does not prove absent capability. Always cite what was searched and what was not found.
+
+### Every row cites at least one source
+
+The Internal Reasoning column must name the specific source: past RFP filename and row (e.g., `"Laramie RFP - Spare EAM Response Matrix row 3.1.3"`), doc page URL, or Notion/Glean page title and date. If the reasoning says "inferred from..." or "based on general knowledge of Spare EAM..." without a source, the row is not complete.
 
 ### Voice
 
-Follow these rules without exception. Every rule came from a real review cycle on a real matrix.
-
-- **Lead with `Spare` or `Spare's`.** The first word of the customer-facing comment must be `Spare` (as a noun) or `Spare's` (possessive). Never open with the customer's problem, the capability name, or a generic descriptor. *"Spare EAM supports…"* is good. *"Barcode scanning is supported…"* is wrong. *"In an AV deployment…"* is wrong even if it reads well, rework it to open with Spare.
-- **No em dashes.** The em-dash character (Unicode `U+2014`) is a known AI-writing tell. Use commas, periods, semicolons, or parentheses instead. Do not generate text with em dashes and then post-hoc replace; generate without them from the start.
-- **Third-person, product-named.** Spare, not "we." Name the specific product (`Spare EAM`, `Spare Operations`, `Spare Maintain app`, `Spare Driver App`, `Spare Resolve`, `Spare Analytics`, `Spare Engage`, `Open API`, `Live Map`, `Time Travel`).
-- **Specific and quantified.** Cite actual numbers from docs (`every 3-5 seconds`, `99.99% uptime target`, `100% FTA compliance`, `within 30 days`). Vague claims are less trustworthy than narrow specific ones.
-- **Honest about gaps.** When a capability isn't there, say so plainly. Example: *"Note: automated warranty expiration notifications are not currently available. Warranty data is stored in the asset record and can be referenced manually or via scheduled reports."* This is a trust-builder, not a weakness. Known gaps are catalogued in `references/known-gaps.md`.
-- **Weave in the deal context.** For paratransit deals, reference ADA and rider experience. For AV pilots, reference remote monitoring operators and no-onboard-driver framing. For EAM deals against agencies with a separate ERP, name the ERP (Dynamics 365, Tyler Munis) and position Spare as the integration partner. Generic answers look generic.
-- **Length scales with requirement complexity.** Narrow factual asks → 1-2 sentences. Multi-dimensional capabilities → 2-4 paragraphs. Don't pad; don't under-answer.
+- **Lead with `Spare` or `Spare's`.** First word of every customer-facing comment is `Spare` as a noun or `Spare's` as possessive. Never open with the customer's problem, the capability name, or a generic descriptor.
+- **No em dashes.** The em-dash character (`U+2014`) is a known AI-writing tell. Use commas, periods, semicolons, or parentheses.
+- **Third-person, product-named.** Spare, not "we." Name the specific product exactly as it appears in the docs or past RFPs (see `references/scope-of-spare.md` for the canonical product catalog).
+- **Specific and quantified only when sourced.** If you cite a number (uptime percentage, response interval, customer-adoption metric), the number must come from a doc hit or a past RFP you cited. Do not reuse numbers from this plugin's reference files without re-verifying against a live source; the product changes.
+- **Honest about gaps, when the gap is sourced.** A past RFP disclosure or a doc page that says "not currently available" is a legitimate basis for disclosing a gap. An assumption that Spare probably does not do X is not.
+- **Weave in the deal context.** Reference the agency's fleet size, adjacent systems, and service modes from the deal-context artifact. Generic answers read as generic.
 
 ### Answer registers
 
-Two opening registers exist in the corpus. Pick per row.
+Two valid opening registers. Pick per row based on whether the requirement benefits from a "why this matters" hook.
 
-- **Capability-first**, `Spare EAM supports X by doing Y...`. Use for short, narrow, factual requirements (`Vehicle status`, `Barcode scanning`, `Export to Excel`). Cleaner, shorter, gets to the point.
-- **Context-first**, `Spare's approach here depends on what the agency is tracking. For platform health, ... For vehicle health, ...`. Use for multi-dimensional or ambiguous requirements where different interpretations deserve different answers, and where leading with "why this matters" earns trust.
+- **Capability-first:** `Spare EAM supports X by...`. Use for short, narrow, factual requirements.
+- **Context-first:** `Spare's approach here depends on what the agency is tracking. For X, ... For Y, ...`. Use for multi-dimensional or scope-dependent requirements.
 
-Both must still open with `Spare` or `Spare's` as the first word.
+Both open with `Spare` or `Spare's`.
 
 ### Reusable answer templates
 
-See `references/voice-templates.md` for complete templates, including:
+Structural patterns only, no cached claims. See `references/voice-templates.md`:
 
-- **Three-layer template** (platform health / service operations / vehicle health) for `detect X`, `monitor X`, `report X` requirements
-- **Three-tool template** (audit logs / Resolve / EAM) for incident logging, case management, customer feedback requirements
-- **ERP-partner template** (for `ability to X or integrate with ERP` requirements when the agency has a separate ERP)
-- **Clarification-request template** for genuinely ambiguous or scope-dependent requirements
+- Three-layer template (platform / service / vehicle) for multi-dimensional capability requirements
+- Three-tool template for multi-product capability requirements (the specific tools named must come from sourced evidence)
+- ERP-partner template for "ability to X or integrate with ERP" requirements when the agency has a separate ERP
+- Clarification-request template for genuinely ambiguous or scope-dependent requirements
+- Short factual template (capability-first)
 
 ### Verdict selection
 
-- **Use the best-fit verdict from the agency's vocabulary, not the closest synonym.** If the vocabulary is `Y / Y-ND / N / I`, don't write `P` because a previous matrix used `P`.
-- **Reserve "partial" and "modified" verdicts for genuinely scope-dependent multi-part requirements.** Example: HOLON's R48 final-pilot-report requirement spans KPIs, scalability, and lessons learned, all three need agency alignment before committing. `Mod` is right. A simple "does Spare support photo attachments?" is always `Y`, never `P`.
-- **Use the "Need More Information" or equivalent verdict when you genuinely cannot resolve the answer from docs + past RFPs.** Better to flag for SME verification than to guess. This is a feature, not a weakness.
-- **ERP-adjacent requirements with the agency's ERP named separately in the RFP.** When an agency has explicitly procured a separate ERP (e.g., MTD has Dynamics 365), the right verdict for `ability to X or integrate with ERP` is often the agency's equivalent of `Y` with the Support column set to `TPS` or `Third Party`, and the comment positioning Spare as the integration partner. Do not answer `N` when the agency's own architecture creates a better answer.
+- Use the exact verdict vocabulary defined by the agency. Never substitute from another matrix.
+- The verdict comes from sourced evidence, not from an assumption. A past RFP row saying `Y` to a near-identical requirement is strong support for `Y`. A doc page describing the feature is support for `Y`. Absence of either is not support for `N`; it is support for `I`.
+- Reserve partial / "modified" verdicts for genuinely scope-dependent multi-part requirements. Most answers are `Y` or `I`.
 
 ### Confidence scoring
 
-For every row you fill, set the Internal Confidence column:
-
-- **High (green)**, Answer directly sourced from a past RFP response + Spare docs, or directly disclosed capability/gap. Verdict is clear from the facts.
-- **Medium (yellow)**, Capability is there but specific wording, permission model, or threshold needs SME verification. Or answer is inferred from adjacent capabilities but not documented directly.
-- **Low (red)**, No direct source found. Answer based on product reasoning only. SME must verify before submission.
-
-In the Internal Reasoning column, cite the source explicitly: which past RFP row, which Spare doc page URL, which Notion page. When uncertain, say so: *"Inferred from X. Need SME to confirm Y. Flagged Medium."*
-
-This confidence scoring is the primary trust mechanism. An SE should be able to scan a 600-row filled matrix, sort by confidence, and triage only the yellows and reds, not re-verify every row from scratch.
+- **High (green)**, direct match from past RFP in the same product area within the last 12 months, plus corroboration from current docs.
+- **Medium (yellow)**, cited source exists but is older than 12 months, or only one source (past RFP without doc confirmation, or doc without a past RFP precedent), or specific wording needs SME verification.
+- **Low (red)**, no direct source; answer constructed from adjacent evidence and explicitly flagged for SME verification. Low-confidence rows are a feature, not a weakness; they tell the SE exactly where to focus review time.
 
 ## Output checklist
 
 Before handing off the filled file, verify:
 
+- [ ] No row outputs language like "this isn't a Spare deal," "Spare doesn't do X category," or equivalent without citing a specific source
 - [ ] Every filled comment opens with `Spare` or `Spare's`
-- [ ] Zero em dashes across all filled cells
-- [ ] Every filled cell has `Font(bold=False)` set explicitly
+- [ ] Zero em dashes
+- [ ] Every filled cell has `Font(bold=False)` explicitly set
 - [ ] Pre-existing stray values in answer columns are cleared
-- [ ] Internal Confidence and Internal Reasoning columns are present, labeled `(strip before submit)`, and color-coded
+- [ ] Internal Confidence and Internal Reasoning columns present, labeled `(strip before submit)`, color-coded
+- [ ] Every filled row has a non-empty Internal Reasoning with at least one source citation (Drive filename + row, or doc URL, or Notion/Glean reference)
 - [ ] Section-header rows are untouched
-- [ ] Agency's verdict vocabulary is used exactly (no substitutions)
-- [ ] Deal context (agency name, adjacent systems, fleet size) appears in answers where it adds signal
+- [ ] Agency's verdict vocabulary used exactly
+- [ ] Deal context appears in answers where it adds signal
 
-Companion skills: `extract-deal-context` runs once at the start of a new RFP workflow to produce the deal-context artifact this skill loads; `review-rfp-draft` runs a structured QA pass (blockers, SME review, style drift, legal/over-disclosure, coverage) before the SE submits the matrix.
+Run the companion skill `review-rfp-draft` before submission for a full QA pass.
 
 ## Reference files
 
-- `references/methodology-rules.md`, the complete rule list (15 rules), with the review-cycle origin of each
-- `references/voice-templates.md`, three-layer, three-tool, ERP-partner, and clarification-request templates with examples
-- `references/known-gaps.md`, capability gaps that must be disclosed honestly (warranty notifications, MPG auto-calc, cost-center billing, etc.)
-- `references/schema-detection.md`, how to detect the matrix schema programmatically, including every known agency layout
-- `references/competitive-positioning.md`, how to position Spare against named competitors (Fleetio, RTA, AssetWorks, myAvail, others). Primary source is Spare's sales-enablement docs; fall back to Glean for Klue-sourced battlecards when a competitor isn't documented here
+- `references/methodology-rules.md`, the complete rule list, with Rule 0 forbidding unsourced scope judgments
+- `references/voice-templates.md`, structural answer patterns
+- `references/known-gaps.md`, methodology for disclosing gaps (specific gap claims must be sourced live, not from this file)
+- `references/scope-of-spare.md`, the Spare product catalog (names only, for search scaffolding; not an authoritative scope statement)
+- `references/competitive-positioning.md`, how to position against named competitors when the deal context names one
+- `references/schema-detection.md`, how to detect matrix schema, including observed agency layouts

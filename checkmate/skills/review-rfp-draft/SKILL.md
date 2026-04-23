@@ -11,7 +11,7 @@ Run a structured QA pass over a filled RFP compliance matrix. Produce a triage r
 
 Scan every filled answer row and check it against the rules the `fill-rfp-matrix` skill is supposed to enforce. Then produce a short report grouped by severity, so the SE can triage in this order:
 
-1. **Blockers**, things that must be fixed before submission (em dashes, answers that don't open with `Spare`, inherited formatting that differs from the template, stray pre-existing agency data that wasn't cleared, internal-review columns that aren't labeled `strip before submit`)
+1. **Blockers**, things that must be fixed before submission: unsourced scope-judgment language anywhere in the output, rows with no source citation in the reasoning column, em dashes, answers that don't open with `Spare`, inherited formatting that differs from the template, stray pre-existing agency data that wasn't cleared, internal-review columns that aren't labeled `strip before submit`
 2. **SME review needed**, rows flagged `Low` confidence, rows with `I` (Need More Info) or `Mod` or `Y-ND` verdicts, rows with explicit clarification requests in the comment
 3. **Style drift**, answers that meet the rules but have voice inconsistencies (generic phrasing, missing product names, missing deal-context framing)
 
@@ -21,7 +21,9 @@ Scan every filled answer row and check it against the rules the `fill-rfp-matrix
 
 For every row where the comment column is non-empty:
 
-- [ ] First word is `Spare` or `Spare's`. Flag any other opener. Acceptable: `Spare supports...`, `Spare's Live Map...`. Not acceptable: `In an AV deployment...`, `Barcode scanning...`, `The Spare Maintain app...`.
+- [ ] **Unsourced scope-judgment language anywhere in the output.** If the draft contains "this is not a Spare deal," "Spare does not do this category," "this RFP is outside our product domain," or equivalent at any level (per-row, per-section, summary), this is a critical blocker. The fill skill must source every row; category-level refusals are forbidden per Rule 0. Discard the draft and re-run with the updated methodology.
+- [ ] **Every row has a non-empty Internal Reasoning with at least one source citation.** A reasoning note that reads "inferred from..." or "based on general knowledge of Spare..." without a citation (past RFP filename + row, doc page URL, or Notion/Glean reference) is a blocker. The row must be re-drafted with a real source.
+- [ ] First word of the customer-facing comment is `Spare` or `Spare's`. Flag any other opener. Acceptable: `Spare supports...`, `Spare's Live Map...`. Not acceptable: `In an AV deployment...`, `Barcode scanning...`, `The Spare Maintain app...`.
 - [ ] No em dashes (the `U+2014` character) anywhere. Report exact count and offending rows.
 - [ ] Font is not bold on the comment cell (unless the template's neighbor comment cells are themselves bold, which is rare and should be flagged for SE to decide).
 - [ ] Verdict value is one of the agency's declared vocabulary. Flag any verdict that isn't in the declared set (e.g., a `P` in an MTD matrix where the vocab is `Y/Y-ND/N/I` is wrong).

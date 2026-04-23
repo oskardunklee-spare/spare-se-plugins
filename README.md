@@ -12,7 +12,7 @@ Simulation helpers, and more.
 
 | Plugin | Version | What it does |
 |---|---|---|
-| [checkmate](./checkmate) | 0.2.0 | Fill and review RFP compliance matrices in Spare's voice. Extracts structured deal context, schema-aware drafting, confidence scoring per row, competitive positioning, pre-submission QA with legal guardrails. Replaces Responsive for RFP responses. |
+| [checkmate](./checkmate) | 0.3.0 | Draft and QA RFP compliance matrices in Spare's voice, sourced live from Google Drive past-RFP responses and the Spare documentation MCP. Forbids unsourced scope judgments, cites sources per row, scores confidence, and runs a pre-submission review pass covering voice, formatting, legal over-disclosure, and coverage. Replaces Responsive for RFP responses. |
 
 ## Using these plugins
 
