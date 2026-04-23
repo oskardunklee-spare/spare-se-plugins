@@ -28,3 +28,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Checkmate per-user session cache (rebuilt from Drive at fill time; never commit)
+checkmate/data/cache/

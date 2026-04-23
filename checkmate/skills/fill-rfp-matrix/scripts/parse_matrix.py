@@ -217,6 +217,7 @@ def main() -> int:
                 json.dumps(
                     {
                         "id": f"{args.source_id}:{r.sheet}:{r.row_num}",
+                        "source_id": args.source_id,
                         "source_file": args.source_file,
                         "source_row": f"{r.sheet} row {r.row_num}",
                         "agency": agency,

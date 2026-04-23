@@ -42,11 +42,9 @@ Fit assessment is a separate concern. If the user wants a fit check, they will a
 
 If after executing the mandatory search sequence (below) you genuinely cannot find evidence one way or the other for a specific row, the verdict is `I` (Need More Info) in the agency's vocabulary, with reasoning that names the sources searched and what was found. Not a no-bid recommendation.
 
-## Mandatory first action: build the precedent corpus in-session
+## Mandatory first action: prepare the precedent corpus
 
-Before opening the matrix, before detecting schema, before anything else. Every fill builds a fresh corpus from Spare General. Nothing is cached across sessions. Nothing is published back to Drive. The corpus lives and dies with this session.
-
-Rationale: Spare General content can change during the day. A cached corpus from this morning can be wrong by this afternoon. The 2-3 minutes this adds to a fill is cheap insurance against drafting from stale precedents.
+Before opening the matrix, before detecting schema, before anything else. The corpus is cached on disk in the plugin workspace and refreshed incrementally from Drive. Only files that actually changed since the last fill are re-parsed; unchanged Drive = fast path.
 
 ### Spare General is a Google Shared Drive
 
@@ -65,107 +63,143 @@ When calling any Drive connector search or list tool, pass:
 
 If the root ID ever changes, update this file.
 
+### Cache locations (persistent, per-user)
+
+The corpus and its manifest live inside the plugin workspace folder, which is mapped to the user's real disk and persists across sessions:
+
+- `$CLAUDE_PLUGIN_ROOT/data/cache/precedents.jsonl`, the indexed corpus
+- `$CLAUDE_PLUGIN_ROOT/data/cache/state.json`, the manifest: `{"last_walk_at": "<ISO>", "files": {<file_id>: <modifiedTime>, ...}}`
+
+Both are gitignored. Each SE has their own copy; nothing is shared via Drive.
+
 ### Steps
 
-Execute in order. Do not skip. Do not attempt to walk Drive by any mechanism other than the Cowork connector.
+Execute in order. Do not skip. Do not walk Drive by any mechanism other than the Cowork connector.
 
-#### 1. Install openpyxl in the sandbox
+#### 1. Pre-flight connector check
+
+Verify the required connectors are available before doing anything Drive-shaped:
+
+- **Google Drive connector** (required). Call a lightweight Drive tool (e.g., `list_recent_files` with a small pageSize, or `get_file_metadata` on the Shared Drive root) to confirm it responds. If it doesn't, stop and tell the user: *"Checkmate needs the Google Drive connector to walk Spare General. Install or reconnect it in Cowork Settings → Connectors and try again."*
+- **Spare documentation MCP** (recommended). If unavailable, warn but continue; per-row docs corroboration degrades to precedent-only sourcing.
+
+#### 2. Install openpyxl in the sandbox
 
 ```bash
 pip install openpyxl --break-system-packages 2>&1 | tail -1
 ```
 
-If this fails, stop and tell the user. The rebuild needs openpyxl to parse xlsx matrices. Do not proceed with partial parsing.
+Only strictly required if Step 5 will run (i.e., files need re-parsing). Run it eagerly anyway; it's cheap and the downstream script will assume it's there.
 
-#### 2. Prepare a session scratch directory and target the local cache path
+#### 3. Decide cache status: fresh, stale, or missing
+
+```bash
+CACHE="$CLAUDE_PLUGIN_ROOT/data/cache"
+mkdir -p "$CACHE"
+```
+
+- If `$CACHE/precedents.jsonl` and `$CACHE/state.json` both exist and the JSONL parses: **cache is usable**. Proceed to Step 4 (Drive diff).
+- If either is missing or malformed: **cold start**. Skip Step 4 and go straight to Step 5 (full walk). Before walking, post a user-facing status message: *"No cached corpus found. Walking Spare General now. Expect 15-25 minutes on first run; every fill after this will be seconds unless Drive content changes."*
+
+#### 4. Diff Drive against the cache (fast path)
+
+**Resolve the Shared Drive root:**
+
+- **Primary (by hardcoded ID):** call `get_file_metadata` on `fileId = "0AIjutkwbzFjJUk9PVA"` with `supportsAllDrives: true`. Record as `$DRIVE_ROOT_ID`.
+- **Backup (by name):** if the hardcoded ID fails, search by name: `q: "name = 'Spare General' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"` with `corpora: "allDrives"`, `supportsAllDrives: true`, `includeItemsFromAllDrives: true`.
+- **If both fail:** stop. Report what was tried. Do not draft from the bundled sample.
+
+**List metadata only** (no downloads) for every `.xlsx`, `.csv`, or Google Sheet under `$DRIVE_ROOT_ID` modified in the past 18 months. On every list call pass `supportsAllDrives: true`, `includeItemsFromAllDrives: true`, `corpora: "drive"`, `driveId: $DRIVE_ROOT_ID`. Return just the `{id, name, mimeType, modifiedTime, webViewLink}` tuples. This is a metadata pass, not a download pass — should take 1-3 minutes even on a large drive.
+
+**Compare against `state.json`:**
+
+- `added` = Drive file IDs not in `state.json`
+- `changed` = Drive file IDs whose `modifiedTime` in Drive is newer than in `state.json`
+- `removed` = file IDs in `state.json` not seen in Drive
+
+**Branch:**
+
+- If `added`, `changed`, and `removed` are all empty: **nothing to do.** Post: *"Corpus is up to date (N rows from M files, last walked <date>). Loading cache."* Skip to Step 6.
+- Otherwise: post a status message naming the deltas (e.g. *"3 files changed, 1 added since last fill. Re-parsing 4 files, ~2 minutes."*) and continue to Step 5 with a **targeted rebuild** over just `added ∪ changed`. Remove any rows in `precedents.jsonl` whose `source_id` is in `changed ∪ removed`; keep the rest.
+
+#### 5. Download and parse the target files
+
+Prepare a session scratch dir:
 
 ```bash
 SCRATCH="$(pwd)/checkmate-rebuild"
-rm -rf "$SCRATCH"
-mkdir -p "$SCRATCH/downloads"
-: > "$SCRATCH/precedents.jsonl"
-
-mkdir -p ~/.cache/checkmate
+rm -rf "$SCRATCH" && mkdir -p "$SCRATCH/downloads"
 ```
 
-Final output goes to `~/.cache/checkmate/precedents.jsonl`. The MCP server resolves that path automatically and hot-reloads on mtime change.
+If this is a **cold start**, the target set is every xlsx/csv/Sheet under `$DRIVE_ROOT_ID` modified in the past 18 months (walk it now with BFS, Shared Drive flags as in Step 4). If this is a **targeted rebuild**, the target set is just `added ∪ changed`.
 
-#### 3. Resolve the Spare General Shared Drive root
-
-**Primary (by hardcoded ID):** call `get_file_metadata` on `fileId = "0AIjutkwbzFjJUk9PVA"` with `supportsAllDrives: true`. Record as `$DRIVE_ROOT_ID`.
-
-**Backup (by name):** if the hardcoded ID fails, search by name: `q: "name = 'Spare General' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"` with `corpora: "allDrives"`, `supportsAllDrives: true`, `includeItemsFromAllDrives: true`.
-
-**If both fail:** stop. Report what was tried. Do not proceed with the bundled 10-row sample.
-
-#### 4. Walk the Shared Drive recursively, filtered to the last 18 months
-
-Default filter: only matrices whose `modifiedTime` is within the past 18 months. This keeps the walk fast and the corpus relevant. If the user explicitly asks for the full history, drop the filter.
-
-Use the connector's file-search tool with these parameters on every call:
-
-- `q: "'<parent_id>' in parents and trashed = false and modifiedTime > '<cutoff>'"` where `<cutoff>` is ISO-8601 18 months ago
-- `supportsAllDrives: true`
-- `includeItemsFromAllDrives: true`
-- `corpora: "drive"` with `driveId: $DRIVE_ROOT_ID`
-
-BFS from `$DRIVE_ROOT_ID` through every subfolder. Folders themselves are not subject to the modifiedTime filter. Apply the filter only to terminal files. Collect metadata (id, name, mimeType, webViewLink, modifiedTime, parents) for:
-
-- `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`)
-- `.csv` (`text/csv`)
-- Google Sheets (`application/vnd.google-apps.spreadsheet`)
-
-Ignore everything else (PDFs, Docs, images).
-
-If the first list call returns zero children for `$DRIVE_ROOT_ID`, halt. Zero children almost always means the Shared Drive flags were dropped somewhere; it is not a real empty-drive result.
-
-#### 5. Download and parse every matrix
-
-For each file in the list:
+For each target file:
 
 1. Download via `download_file_content` (or equivalent) with `supportsAllDrives: true`. Save to `$SCRATCH/downloads/<file_id>.<ext>`. For Google Sheets, export as xlsx.
 2. Invoke the parser:
 
    ```bash
-   python3 <plugin-root>/skills/fill-rfp-matrix/scripts/parse_matrix.py \
+   python3 "$CLAUDE_PLUGIN_ROOT/skills/fill-rfp-matrix/scripts/parse_matrix.py" \
        --input "$SCRATCH/downloads/<file_id>.<ext>" \
        --source-file "<original filename from Drive>" \
        --source-id "<drive file id>" \
        --url "<drive webViewLink if available>" \
-       --output "$SCRATCH/precedents.jsonl"
+       --output "$SCRATCH/new_rows.jsonl"
    ```
 
-3. Exit code 0 means rows were written. Exit code 2 means the file was not a recognizable matrix (skip). Exit code 3 means a parse error (log and continue).
+3. Exit code 0 means rows were written. Exit code 2 means unrecognized matrix (skip). Exit code 3 means parse error (log filename, continue).
 
-#### 6. Validate the staging file and promote to the cache
+**Merge into the cache:**
+
+```bash
+# Remove rows whose source_id is in the rebuild set (cold-start: empty; targeted: added∪changed∪removed)
+python3 -c "
+import json, sys
+from pathlib import Path
+cache = Path('$CACHE/precedents.jsonl')
+rebuild_ids = set(open('$SCRATCH/rebuild_ids.txt').read().split()) if Path('$SCRATCH/rebuild_ids.txt').exists() else set()
+keep = []
+if cache.exists():
+    for line in cache.open():
+        line = line.strip()
+        if not line: continue
+        obj = json.loads(line)
+        if obj.get('source_id') not in rebuild_ids:
+            keep.append(line)
+# Append newly parsed rows
+if Path('$SCRATCH/new_rows.jsonl').exists():
+    for line in Path('$SCRATCH/new_rows.jsonl').open():
+        line = line.strip()
+        if line: keep.append(line)
+cache.write_text('\n'.join(keep) + '\n')
+print(f'merged: {len(keep)} total rows in corpus')
+"
+```
+
+(Substitute the real `source_id` field if the parser emits it under a different key; current emit is `id` formatted as `<source_id>:<sheet>:<row>`, so split on the first `:`.)
+
+#### 6. Rewrite state.json
 
 ```bash
 python3 -c "
-import json, sys
-n = 0
-with open('$SCRATCH/precedents.jsonl') as f:
-    for line_no, line in enumerate(f, 1):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            json.loads(line)
-        except Exception as e:
-            sys.exit(f'line {line_no}: {e}')
-        n += 1
-print(f'ok: {n} valid precedent rows')
+import json
+from datetime import datetime, timezone
+drive_files = $DRIVE_FILE_LIST_JSON  # list of {id, modifiedTime} from Step 4 (or full walk in cold-start)
+state = {
+    'last_walk_at': datetime.now(timezone.utc).isoformat(),
+    'files': {f['id']: f['modifiedTime'] for f in drive_files},
+}
+with open('$CACHE/state.json', 'w') as f:
+    json.dump(state, f, indent=2)
+print('state.json updated')
 "
-
-cp "$SCRATCH/precedents.jsonl" ~/.cache/checkmate/precedents.jsonl
 ```
-
-If row count is zero, stop. Do not overwrite the cache with an empty corpus. Zero almost always means the Drive walk returned nothing; it's a flag issue, not a real empty drive.
 
 #### 7. Confirm the corpus is loaded
 
-Call the `corpus_stats` tool on the `checkmate-precedents` MCP server. Report its output as the grounding note to the user: total rows, unique source files, agencies, year range. The MCP server hot-reloads on mtime change, so the just-written file is picked up automatically.
+Call the `corpus_stats` tool on the `checkmate-precedents` MCP server. Report its output as the grounding note: total rows, unique source files, agencies, year range. The MCP server hot-reloads on mtime change.
 
-If `corpus_stats` returns only the 10-row bundled sample (unique_source_files == 1 AND the sole file name contains "[SAMPLE]"), something went wrong with the rebuild. Stop and tell the user. Do not draft from the sample.
+If `corpus_stats` returns only the 10-row bundled sample (unique_source_files == 1 AND the sole file name contains "[SAMPLE]"), the cache path wasn't populated. Stop and tell the user. Do not draft from the sample.
 
 Only after `corpus_stats` confirms a real, populated corpus do you begin drafting rows.
 
@@ -186,6 +220,20 @@ Scan the verdict and comment columns across the full requirement range for pre-e
 ### 4. Isolate template formatting
 
 Every cell you write must explicitly set `Font(bold=False, name="Calibri", size=11)` and `Alignment(wrap_text=True, vertical="top")` on comment cells.
+
+**Clear explicit row heights on every row you fill.** Agency templates sometimes set a fixed row height, which causes wrapped text to clip even with `wrap_text=True`. In openpyxl, setting `ws.row_dimensions[r].height = None` removes the height attribute so Excel auto-fits the row on open:
+
+```python
+from openpyxl.worksheet.dimensions import RowDimension
+# After writing verdict + comment + internal columns on row r:
+ws.row_dimensions[r].height = None
+# Defensive: if openpyxl's None-assignment gets normalized back, drop the attribute:
+if r in ws.row_dimensions and ws.row_dimensions[r].ht is not None:
+    ws.row_dimensions[r].ht = None
+    ws.row_dimensions[r].customHeight = False
+```
+
+Only clear heights on rows you actually fill; do not touch section-header rows or pre-existing unfilled rows.
 
 ### 5. Add the internal review columns
 
@@ -268,6 +316,7 @@ Structural only, see `references/voice-templates.md`. Specific products/numbers 
 - [ ] Every filled comment opens with `Spare` or `Spare's`
 - [ ] Zero em dashes
 - [ ] `Font(bold=False)` set explicitly on every written cell
+- [ ] Row heights cleared on every filled row so wrapped text auto-fits on open
 - [ ] Pre-existing stray values cleared
 - [ ] Internal Confidence and Reasoning columns present, color-coded, labeled `(strip before submit)`
 - [ ] Section-header rows untouched

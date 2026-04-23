@@ -14,7 +14,9 @@ Fill and review RFP compliance matrices for Spare's Solutions Engineering team. 
 1. Install the plugin via the Spare SE Plugins marketplace in Cowork.
 2. Confirm the Google Drive connector is installed and authenticated in Cowork (Settings, Connectors). No additional auth or Google Cloud setup required.
 
-That's it. There is no separate corpus-building step, no shared file to manage, no weekly schedule to configure. The first time you fill a matrix, Checkmate walks Spare General and builds the corpus in-session. Every subsequent fill does the same, so you always draft from the latest past-RFP content.
+That's it. No separate corpus-building step, no shared file to manage, no weekly schedule to configure. The first time you fill a matrix, Checkmate walks Spare General (15-25 minutes) and caches the result locally at `checkmate/data/cache/precedents.jsonl` inside the plugin workspace folder on your Mac. Every subsequent fill does a quick metadata-only diff against Drive (seconds) and re-parses only files that actually changed.
+
+The cache is per-user, never shared, and gitignored. Each SE's first fill pays the one-time cost; after that, fills start in seconds unless Spare General content changes.
 
 The plugin ships with a 10-row sample `precedents.jsonl` for smoke-testing the install; real fills never use it.
 
@@ -36,9 +38,9 @@ The plugin ships with a 10-row sample `precedents.jsonl` for smoke-testing the i
 
 Rule 2 (source every row live) is enforced in code rather than in prose. A tool call with structured output cannot be faked by the model.
 
-## Why in-session instead of a shared corpus?
+## Why local cache + change detection instead of a shared corpus?
 
-Spare General content can change during the day. A cached corpus from this morning can be wrong by this afternoon. The 2-3 minutes an in-session rebuild adds to a fill is cheap insurance against drafting from stale precedents. It also eliminates an entire category of plumbing (shared folder permissions, Drive publish step, scheduled refresh jobs) that earlier architectures struggled with.
+Spare General content can change during the day. Checkmate detects changes via a metadata-only Drive list at the start of every fill, re-parses only the files that actually changed, and keeps the rest of the cache as-is. That gives you "always fresh" without paying the cost of a full rebuild on every session. It also eliminates an entire category of plumbing (shared folder permissions, Drive publish step, scheduled refresh jobs) that earlier architectures struggled with. Each SE's cache is their own, per-user, gitignored, and never shared.
 
 ## Connectors this plugin expects you to have installed
 

@@ -18,11 +18,12 @@ a fresh corpus from Drive into the cache path at session start without
 restarting the server.
 
 Path resolution (first hit wins):
-  1. $CHECKMATE_PRECEDENTS_PATH   (set by plugin .mcp.json)
-  2. ~/.cache/checkmate/precedents.jsonl   (session cache written by
-     fill-rfp-matrix's in-session rebuild step)
-  3. $CLAUDE_PLUGIN_ROOT/data/precedents.jsonl   (bundled sample, used
-     only for smoke tests; real runs expect #2 to be populated)
+  1. $CHECKMATE_PRECEDENTS_PATH                    (explicit override)
+  2. $CLAUDE_PLUGIN_ROOT/data/cache/precedents.jsonl  (production cache;
+     persists on the user's real disk via the plugin workspace mount)
+  3. ~/.cache/checkmate/precedents.jsonl           (legacy v1.2.x path)
+  4. $CLAUDE_PLUGIN_ROOT/data/precedents.jsonl     (bundled 10-row sample,
+     smoke-test only)
 
 The server fails loudly when no path resolves to an existing, non-empty
 corpus. Silent fallback to general knowledge would defeat the purpose.
@@ -176,16 +177,30 @@ def _load_precedents(path: Path) -> list[Precedent]:
 
 
 def _resolve_path() -> Path:
-    """Find a usable corpus path. First hit wins."""
+    """Find a usable corpus path. First hit wins.
+
+    Order:
+      1. $CHECKMATE_PRECEDENTS_PATH (explicit override)
+      2. $CLAUDE_PLUGIN_ROOT/data/cache/precedents.jsonl (production: per-user
+         cache inside the plugin workspace folder; persists across sessions
+         because the plugin workspace is mapped to the user's real disk)
+      3. ~/.cache/checkmate/precedents.jsonl (legacy path from v1.2.x;
+         ephemeral inside the Cowork sandbox home, kept for backwards compat)
+      4. $CLAUDE_PLUGIN_ROOT/data/precedents.jsonl (bundled 10-row sample,
+         smoke-test only)
+    """
     candidates: list[Path] = []
 
     env_path = os.environ.get("CHECKMATE_PRECEDENTS_PATH")
     if env_path:
         candidates.append(Path(env_path).expanduser())
 
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        candidates.append(Path(plugin_root) / "data" / "cache" / "precedents.jsonl")
+
     candidates.append(Path.home() / ".cache" / "checkmate" / "precedents.jsonl")
 
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         candidates.append(Path(plugin_root) / "data" / "precedents.jsonl")
 
