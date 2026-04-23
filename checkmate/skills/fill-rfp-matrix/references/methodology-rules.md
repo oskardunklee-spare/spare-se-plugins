@@ -2,90 +2,107 @@
 
 Rules are numbered for reference. Rule 0 overrides everything else. Each rule came from a real review cycle on a real matrix or from a real failure mode in production.
 
-## Rule 0, Never make an unsourced scope judgment
+## Rule 0: Invoking Checkmate means the bid decision is already made
 
-Do not output language like "this is not a Spare deal," "Spare does not do X category," "this RFP is outside Spare's product domain," or equivalent, at any level (per-row, per-section, per-matrix). Do not refuse to draft on category grounds. Do not assume a requirement is out of scope because the RFP is labeled EAM, asset management, fare, CAD/AVL, or anything else.
+When the user invokes `fill-rfp-matrix` on a matrix, the go/no-go decision has been made already by the SE and leadership. Your job is to source the best answers from past responses and docs, not to second-guess the bid.
 
-The only way to determine whether Spare supports a specific requirement is to search the live sources (Drive past RFPs, Spare docs MCP, Notion, Glean) for that specific requirement. Spare's product catalog is broad and updates frequently; category-level intuition is not a reliable signal and has produced wrong outputs in the past.
+Do not produce, at any granularity:
 
-If after searching all sources you cannot find evidence one way or the other, the verdict is `I` (Need More Info) in the agency's vocabulary, with reasoning that names the sources searched and what was found. Never guess, never decline, never category-judge.
+- "This is not a Spare deal"
+- "Recommend no-bid" or "Suggest no-bid (Recommended)"
+- Fit-check summaries, scope-mismatch warnings, or category-concern preambles
+- Option menus asking the user how to proceed given a perceived scope issue
+- Any hedging that implies Spare may not be the right vendor for this RFP
 
-## Rule 1, Source every row live, in this order
+Spare's product catalog includes Spare Operations, Spare EAM (full work-order management, PM scheduling, parts inventory, asset lifecycle, vendors/POs), Spare EAM Lite, Spare Resolve, Spare Eligibility, Spare Engage, Spare Analytics, Spare Driver App, Spare Rider App, Spare Maintain (mobile technician), SpareONE, and Open API. Spare has completed EAM RFP responses. If you find yourself about to conclude Spare doesn't ship something broad (EAM, asset management, work orders, maintenance scheduling), you are wrong; check the precedents in Drive.
 
-For every row, search in this sequence before assigning a verdict:
+If the user wants a deal-fit assessment, they will invoke a separate skill for that. This skill does not provide one.
 
-1. Past RFP responses in Google Drive (highest leverage; battle-tested language)
-2. Spare documentation MCP (current product state; check `/internal-changelog/` for recent shipments)
-3. Notion and Glean (internal context, roadmap, Klue battlecards, Slack/Gong tribal knowledge)
+## Rule 1: Start by anchoring in the `Spare General` Drive folder
 
-Only if all three come up empty, verdict is `I`. Do not answer from general knowledge or from this plugin's reference files alone.
+Before opening the matrix, before detecting schema, before anything else, your first action is to locate and read from the `Spare General` Google Drive folder. This is the team's master folder; all precedent lives inside or below it.
 
-## Rule 2, Cite the source in every row
+Steps:
 
-The Internal Reasoning column must name the specific source: past RFP filename and row, doc page URL, or Notion/Glean page title and date. A reasoning note that says "inferred from..." or "based on general knowledge of Spare..." without a citation is not complete.
+1. Use the Drive search tool to find the folder titled `Spare General`.
+2. List its contents. Identify subfolders and files relevant to the RFP category at hand (for EAM: `EAM RFP - <date>`, `Potential EAM RFP`, `<Agency> EAM RFP`, files with `EAM` in the title).
+3. Open at least one completed precedent matrix before drafting any row. Known precedent files: `Laramie RFP - Spare EAM Response Matrix`, `Calgary_EAM_Specs_with_Responses_SpareOnly_updated.csv`, `TCAT EAM RFP 1-28-26`, `SolTrans EAM RFP Scope and Budget`, `NFTA EAM RFP`, `Valley Transit EAM RFP`, `Spare's Master Sample RFP Tech Spec Requirements`.
+4. Produce a short grounding note before drafting: which files you loaded, what categories they cover, how you will use them.
 
-## Rule 3, Detect agency-specific verdict vocabulary
+If `Spare General` is not accessible, stop and tell the user. Do not fall back to general knowledge.
 
-Never assume the verdict set. Read it from the matrix. It may live in a hidden "Response Options" sheet, a "Dropdown" sheet, data validation on the verdict column, or rows between the sheet title and the data. See `schema-detection.md` for detection logic.
+## Rule 2: Source every row live, in this order
 
-## Rule 4, Detect and skip section-header rows
+For every row, search in sequence:
 
-Section-header rows have a short label in the requirement column and no expected verdict or comment. Leave them untouched. Filling them is a clear tell that the output was auto-generated without schema awareness.
+1. Precedent files in `Spare General` (already loaded). Cross-reference the requirement against what a past RFP answered.
+2. Spare documentation MCP (`search_spare_documentation`). Check `/internal-changelog/` for recent shipments.
+3. Notion and Glean for roadmap, tribal knowledge, Klue battlecards.
 
-## Rule 5, Pre-flight scan for stray values
+Only if all three are silent, verdict is `I`. Never `N` from silence. Never a row-level "not a Spare deal."
 
-Agencies often publish matrices with stray numeric scores, draft notes, or previous-vendor placeholders in the answer columns. Clear these explicitly on every row you fill and on every row you leave unfilled, so the submitted file is unambiguous.
+## Rule 3: Cite the source in every row
 
-## Rule 6, Explicit format isolation
+Internal Reasoning must name the specific source: Drive file + row number (e.g., `"Laramie RFP - Spare EAM Response Matrix row 3.1.3"`), doc URL, or Notion/Glean page title + date. "Inferred from..." without a citation is not complete.
 
-Every cell you write must set `Font(bold=False, name="Calibri", size=11)` explicitly (or match the template's visible neighbor font). openpyxl silently preserves inherited bold, italic, and color. Also set `Alignment(wrap_text=True, vertical="top")` on comment cells.
+## Rule 4: Detect agency-specific verdict vocabulary
 
-## Rule 7, Lead every customer-facing comment with `Spare` or `Spare's`
+Read it from the matrix. Hidden sheets, data-validation dropdowns, header-row blocks. Never assume. See `schema-detection.md`.
 
-First word of the customer-facing comment must be `Spare` (noun) or `Spare's` (possessive). Never open with the requirement topic, a generic descriptor, or the customer's context.
+## Rule 5: Detect and skip section-header rows
 
-## Rule 8, No em dashes
+Short labels in the requirement column with no verdict/comment expected. Leave untouched.
 
-The em-dash character (`U+2014`) is a known AI-writing tell. Use commas, periods, semicolons, parentheses, or restructured sentences.
+## Rule 6: Pre-flight scan for stray values
 
-## Rule 9, Be honest about gaps, when the gap is sourced
+Clear pre-existing agency annotations (numeric scores, draft notes, previous-vendor placeholders) before filling.
 
-When a past RFP or a Spare docs page explicitly discloses a gap, surface it in the response using one of the patterns in `known-gaps.md`. When you have no source for a gap, the verdict is `I`, not `N` with a guessed-at gap explanation. An assumption that Spare probably does not do X is not a gap disclosure; it is a hallucination.
+## Rule 7: Explicit format isolation
 
-## Rule 10, Clarification-request phrasing for genuinely ambiguous requirements
+Every written cell sets `Font(bold=False, name="Calibri", size=11)` explicitly. Comment cells set `Alignment(wrap_text=True, vertical="top")`. openpyxl preserves inherited styling otherwise.
 
-When a requirement could be interpreted multiple ways (platform health vs. vehicle health, service-level vs. AV-telemetry), answer what Spare can do for each interpretation and close with: *"We would welcome clarification from the agency on which aspects are most relevant to this requirement."* This reframes ambiguity as partnership, not evasion.
+## Rule 8: Lead every customer-facing comment with `Spare` or `Spare's`
 
-## Rule 11, Internal Confidence and Reasoning columns are mandatory
+First word. Not the topic, not the customer's problem, not a generic descriptor.
 
-At the right edge of the matrix (two columns past the last agency-defined column), add:
-- `Internal Confidence (strip before submit)`, values High / Medium / Low, color-coded
-- `Internal Reasoning / Sources (strip before submit)`, plain text citing at least one source
+## Rule 9: No em dashes
 
-Yellow-highlighted bold headers. The `(strip before submit)` suffix is mandatory so the SE does not accidentally submit them.
+`U+2014` anywhere in customer-facing output is a blocker. Use commas, periods, semicolons, parentheses.
 
-## Rule 12, Confidence rubric
+## Rule 10: Honest about gaps, when the gap is sourced
 
-- `High` (green): direct match from a past RFP in the same product area within the last 12 months, plus corroboration from current docs.
-- `Medium` (yellow): cited source exists but is older than 12 months, or only one source, or specific wording needs SME verification.
-- `Low` (red): no direct source, answer constructed from adjacent evidence. Explicitly flagged for SME verification.
+Past RFP disclosure or docs page saying "not currently available" is legitimate basis for gap disclosure. An assumption that Spare probably does not do X is not. See `known-gaps.md` for phrasing patterns.
 
-## Rule 13, ERP-partner framing when the agency has a separate ERP
+## Rule 11: Clarification-request phrasing for genuinely ambiguous requirements
 
-When the deal context indicates the agency has explicitly procured a separate ERP, requirements phrased `ability to X or integrate with ERP to fulfill this requirement` are candidates for an integration-first answer: agency's equivalent of `Y` with `Support = TPS/Third Party`, positioning Spare as the integration partner via Open API. Cite the specific integration stance from a past RFP that used the same framing.
+When a requirement could be interpreted multiple ways, answer what Spare can do for each interpretation and close with a sourced clarification request.
 
-## Rule 14, `Spare's` possessive counts as a valid opening
+## Rule 12: Internal Confidence and Reasoning columns are mandatory
 
-Rule 7 accepts both `Spare` and `Spare's` as the opening word. *"Spare's approach here..."* is valid.
+Two columns past the last agency-defined column. Yellow bold headers. `(strip before submit)` suffix required.
 
-## Rule 15, Weave the deal context explicitly
+## Rule 13: Confidence rubric
 
-Agency-specific framing separates trustworthy answers from generic filler. Reference the agency's fleet size, service modes, adjacent systems (ERP, GPS, SSO), and implementation partners from the deal-context artifact. Generic answers read as generic.
+- `High` (green): direct match in `Spare General` precedent from the last 12 months, corroborated by current docs
+- `Medium` (yellow): older or single-source match, or specific wording needs SME verification
+- `Low` (red): constructed from adjacent evidence, flagged for SME
 
-## Rule 16, Capability-first vs. context-first opening, picked per row
+## Rule 14: ERP-partner framing when the agency has a separate ERP
 
-Both are valid. Capability-first for short factual requirements. Context-first for multi-dimensional or ambiguous requirements. Both still open with `Spare` or `Spare's`.
+When the deal-context artifact indicates a separately-procured ERP, requirements phrased `ability to X or integrate with ERP` are candidates for integration-first answers: agency's equivalent of `Y` with `Support = TPS`, citing a past RFP that used the same stance.
 
-## Rule 17, Three-layer and three-tool templates are structural, not claim-carrying
+## Rule 15: `Spare's` possessive counts as a valid opening
 
-The templates in `voice-templates.md` are shapes only. The specific products, features, and numbers named inside the shape must come from a cited source, not from the template itself.
+Rule 8 accepts both `Spare` and `Spare's`.
+
+## Rule 16: Weave the deal context explicitly
+
+Agency-specific framing (fleet size, adjacent systems, implementation partners) from the deal-context artifact. Generic answers read as generic.
+
+## Rule 17: Capability-first vs. context-first opening, picked per row
+
+Both valid. Capability-first for short factual. Context-first for multi-dimensional. Both open with `Spare` or `Spare's`.
+
+## Rule 18: Templates are structural, not claim-carrying
+
+The shapes in `voice-templates.md` are patterns. Specific products, features, numbers, and customer names inside a template come from cited sources, not from the template itself.

@@ -12,7 +12,7 @@ Simulation helpers, and more.
 
 | Plugin | Version | What it does |
 |---|---|---|
-| [checkmate](./checkmate) | 0.3.0 | Draft and QA RFP compliance matrices in Spare's voice, sourced live from Google Drive past-RFP responses and the Spare documentation MCP. Forbids unsourced scope judgments, cites sources per row, scores confidence, and runs a pre-submission review pass covering voice, formatting, legal over-disclosure, and coverage. Replaces Responsive for RFP responses. |
+| [checkmate](./checkmate) | 0.4.0 | Draft and QA RFP compliance matrices in Spare's voice. Anchors every run in the team's `Spare General` Google Drive folder to source past precedents (EAM, paratransit, microtransit, fixed-route) before drafting any row. Forbids no-bid and scope-judgment outputs (the bid decision is made before Checkmate is invoked). Every row cites a source; confidence scored per row; pre-submission review pass. Replaces Responsive for RFP responses. |
 
 ## Using these plugins
 

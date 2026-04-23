@@ -7,8 +7,8 @@
     {
       "name": "checkmate",
       "source": "./checkmate",
-      "description": "Draft and QA RFP compliance matrices in Spare's voice, with every row sourced live from Google Drive past-RFP responses and the Spare documentation MCP. Forbids unsourced scope judgments, cites sources per row, scores confidence, and runs a pre-submission review pass covering voice, formatting, legal over-disclosure, and coverage. Built for the Spare SE team to replace Responsive.",
-      "version": "0.3.0",
+      "description": "Draft and QA RFP compliance matrices in Spare's voice. Anchors every run in the team's Spare General Google Drive folder to source past precedents (EAM, paratransit, microtransit, fixed-route) before drafting any row. Forbids no-bid and scope-judgment outputs (the bid decision is made before Checkmate is invoked). Every row cites a source; confidence scored per row; pre-submission review pass. Built for the Spare SE team to replace Responsive.",
+      "version": "0.4.0",
       "category": "solutions-engineering",
       "keywords": ["rfp", "compliance", "matrix", "solutions-engineering", "spare"]
     }
