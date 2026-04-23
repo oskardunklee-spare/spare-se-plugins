@@ -91,15 +91,24 @@ pip install openpyxl --break-system-packages 2>&1 | tail -1
 
 Only strictly required if Step 5 will run (i.e., files need re-parsing). Run it eagerly anyway; it's cheap and the downstream script will assume it's there.
 
-#### 3. Decide cache status: fresh, stale, or missing
+#### 3. Decide cache status: warm, pre-seeded, or cold
 
 ```bash
 CACHE="$CLAUDE_PLUGIN_ROOT/data/cache"
 mkdir -p "$CACHE"
 ```
 
-- If `$CACHE/precedents.jsonl` and `$CACHE/state.json` both exist and the JSONL parses: **cache is usable**. Proceed to Step 4 (Drive diff).
-- If either is missing or malformed: **cold start**. Skip Step 4 and go straight to Step 5 (full walk). Before walking, post a user-facing status message: *"No cached corpus found. Walking Spare General now. Expect 15-25 minutes on first run; every fill after this will be seconds unless Drive content changes."*
+Three branches:
+
+- **Warm start** — `$CACHE/precedents.jsonl` parses and `$CACHE/state.json` is present and valid JSON. This is the normal case after the first fill. Proceed to Step 4 (Drive diff).
+
+- **Pre-seeded warm start** — `$CACHE/precedents.jsonl` parses with more than the 10-row sample, but `$CACHE/state.json` is missing or malformed. The corpus was hand-placed (e.g. seeded after a prior session's walk, or restored from backup) and there is no manifest to diff against. **Do not do a full walk.** Post: *"Found existing corpus (N rows from M files). Bootstrapping state manifest from current Drive state; ready in ~1-2 minutes."* Then:
+  - Run Step 4's **resolve-the-root** and **list-Drive-metadata** sub-steps only (no downloads, no parsing).
+  - Write `state.json` from the listed files as though this were an up-to-date walk.
+  - Skip Steps 5 and 6 entirely. Trust the existing JSONL as-is.
+  - Proceed to Step 7.
+
+- **Cold start** — `$CACHE/precedents.jsonl` is missing, empty, or fails to parse. Post: *"No cached corpus found. Walking Spare General now. Expect 15-25 minutes on first run; every fill after this will be seconds unless Drive content changes."* Skip Step 4 and go straight to Step 5 (full walk).
 
 #### 4. Diff Drive against the cache (fast path)
 
