@@ -2,15 +2,30 @@
 
 Checkmate gets better every time an SE uses it on a real RFP. The value compounds only if the team feeds learnings back into the plugin. This doc explains how.
 
-## The 15-minute contribution ritual
+## The post-RFP ritual
 
-After every submitted RFP, spend 15 minutes updating these files. This is the single most important habit for keeping Checkmate useful.
+After every submitted RFP, two things happen:
 
-1. **`skills/fill-rfp-matrix/references/known-gaps.md`**, if a capability gap was disclosed that isn't already listed, or if the wording of an existing disclosure improved during review
-2. **`skills/fill-rfp-matrix/references/voice-templates.md`**, if a new reusable template emerged (e.g., a new three-layer structure for a different requirement family), or if a banned phrase showed up and needs to be added to the never-use list
+### 1. Rebuild the precedent corpus (5 minutes)
+
+The submitted RFP response should land in the `Spare General` Drive folder. Once it is there, re-run the index builder so the new answers are searchable on the next fill run:
+
+```bash
+cd <plugin-root>/scripts
+python build-precedent-index.py
+```
+
+The script walks the whole folder and rewrites `data/precedents.jsonl`. The MCP server picks up the new corpus at the next plugin reload.
+
+This is the highest-leverage contribution you can make. Everything the plugin searches against lives in that JSONL; a stale corpus means the next SE gets worse precedent matches.
+
+### 2. Update reference files (10 minutes)
+
+1. **`skills/fill-rfp-matrix/references/known-gaps.md`**, if the wording of a gap disclosure improved during review. This file holds the disclosure *patterns*, not specific cached gap claims; the claims come from the live corpus.
+2. **`skills/fill-rfp-matrix/references/voice-templates.md`**, if a new reusable structural template emerged, or if a banned phrase showed up and needs to be added to the never-use list
 3. **`skills/fill-rfp-matrix/references/schema-detection.md`**, if the RFP had a new matrix layout, verdict vocabulary, or column structure not already documented
-4. **`skills/fill-rfp-matrix/references/competitive-positioning.md`**, if the RFP named a new competitor, if Klue published updated battlecards, or if the SE learned new pricing/landmine intel during discovery
-5. **`skills/fill-rfp-matrix/references/methodology-rules.md`**, if a review cycle surfaced a new rule (for example, the "lead with `Spare`" rule came from one review session). Add it as the next numbered rule, with a one-line note on the origin.
+4. **`skills/fill-rfp-matrix/references/competitive-positioning.md`**, if the RFP named a new competitor or Klue published updated battlecards
+5. **`skills/fill-rfp-matrix/references/methodology-rules.md`**, if a review cycle surfaced a new rule. Add it as the next numbered rule with a one-line note on the origin.
 
 ## How to contribute
 

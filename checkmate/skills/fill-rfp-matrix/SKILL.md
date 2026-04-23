@@ -84,14 +84,33 @@ Yellow-highlighted bold headers. A row with no citation in the reasoning column 
 
 ### Mandatory search sequence per row
 
-1. **Past RFP responses in `Spare General`**. Already loaded during the mandatory first action. For each row, cross-reference against the precedent matrix: has a similar requirement been answered before? Use that answer's verdict and adapt its language.
-2. **Spare documentation MCP**. `search_spare_documentation` with keywords from the row. Read relevant `/sales-enablement/*.mdx`, `/customer-enablement/*.mdx`, `/internal-changelog/*.mdx` pages. Check the changelog before asserting "not available"; Spare ships frequently.
-3. **Notion and Glean**. For roadmap, tribal knowledge, Klue battlecards.
-4. **Only if all three come up empty, verdict is `I`**, with reasoning naming what was searched. Never `N` from silence. Never "not a Spare deal" at the row level either.
+**Step 1 is not optional and is not prose-driven. It is a tool call.**
+
+1. **Call `search_precedents`** (the `checkmate-precedents` MCP server bundled with this plugin) with the row's full `requirement_text`. The server performs a TF-IDF search over every past Spare RFP answered in the `Spare General` Drive folder and returns the top 3 matches with similarity scores, verdicts, and comment text. The call looks like:
+
+   ```
+   search_precedents(requirement_text="<full text from the matrix row>", top_k=3)
+   ```
+
+   The result contains a `matches` array. If it is empty, the server returns a `verdict_hint: "I"` and the row's verdict must be `I` (Need More Info) in the agency's equivalent vocabulary, with reasoning naming what was searched. **Do not draft a `Y` or `N` verdict when the precedent search returned nothing.** This is how Rule 2 is enforced programmatically.
+
+   Every row's Internal Reasoning column must cite at least one of the `source_file` + `source_row` identifiers returned by this call. If you cite a precedent that did not appear in the returned matches, `review-rfp-draft` will flag the row as a blocker.
+
+2. **Spare documentation MCP**, for feature corroboration and "not currently available" checks. Run after Step 1, to confirm the precedent is still accurate given any recent product changes. `search_spare_documentation` with keywords from the row; read relevant `/sales-enablement/*.mdx`, `/customer-enablement/*.mdx`, `/internal-changelog/*.mdx` pages.
+
+3. **Notion and Glean**, for tribal knowledge, Klue battlecards, or roadmap questions the precedents and docs do not answer.
+
+4. **Verdict is `I` only when** `search_precedents` returned no matches AND the docs MCP is silent on the specific capability. Never `N` from silence. Never "not a Spare deal" at the row level.
+
+### Before drafting any row: run `corpus_stats`
+
+Before the first row is drafted, call the `corpus_stats` tool on the `checkmate-precedents` MCP server to confirm the precedent corpus is loaded and populated. Include its output as your grounding note (how many rows, how many source files, which agencies, year range). If the corpus is empty or the server reports an error, stop and tell the user to run `scripts/build-precedent-index.py`.
 
 ### Every row cites at least one source
 
-Internal Reasoning must name the specific source: Drive file name + row (e.g., `"Laramie RFP - Spare EAM Response Matrix row 3.1.3 answered Y for PM scheduling by time/mileage/hours"`), doc URL, or Notion/Glean reference with date. No source = not complete.
+Internal Reasoning must name a specific citation returned by `search_precedents` for that row: the `citation` field of a match, which looks like `"Laramie RFP - Spare EAM Response Matrix (Updated) row Sheet1 row 5 (Laramie 2026)"`. Include the `similarity` score so the reviewer can judge match quality. Optionally add a doc URL from the Spare documentation MCP if one was used.
+
+A reasoning note that does not include a citation returned by `search_precedents` is a bug, caught automatically by `review-rfp-draft`.
 
 ### Voice
 

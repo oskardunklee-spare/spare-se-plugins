@@ -118,3 +118,19 @@ Before handoff, skim your own output: read any 3 adjacent filled rows aloud. If 
 ## Rule 20: Finishing a fill means the review skill has run
 
 `fill-rfp-matrix` does not output a "done" to the user until `review-rfp-draft` has been invoked on the filled file and returned a clean report (or the SE has explicitly overridden a flag). Do not hand back a matrix that has not been reviewed. The review skill is part of the drafting workflow, not a separate optional step.
+
+## Rule 21: Per-row precedent search is a tool call, not a prose instruction (v1.0)
+
+Every row's first action is a call to the `search_precedents` tool on the `checkmate-precedents` MCP server bundled with this plugin. The tool returns the top-k nearest matches from the pre-indexed `Spare General` precedent corpus. The row's verdict and comment MUST derive from one or more of the returned matches; the Internal Reasoning column MUST cite at least one `source_file + source_row` from the returned matches.
+
+If `search_precedents` returns no matches above the similarity threshold, the verdict is `I` (Need More Info) in the agency's vocabulary, with reasoning naming the query text and the absence of results. Never draft a `Y`/`N`/`P` verdict from a row where the tool returned nothing.
+
+This rule supersedes and operationalizes Rules 1-3. Those rules describe what to do; Rule 21 describes how Cowork enforces it. Prose rules can be ignored by the model; a tool call with structured output cannot.
+
+Corollary (enforced by `review-rfp-draft`): every citation in the Internal Reasoning column must correspond to a `search_precedents` result for that row's requirement. Citing a precedent that the tool did not return for that row is a hallucination blocker.
+
+## Rule 22: Corpus freshness
+
+The `precedents.jsonl` corpus consumed by the MCP server is built by `scripts/build-precedent-index.py`. Re-run the builder weekly, and whenever a new completed RFP response lands in `Spare General`. An out-of-date corpus causes Checkmate to miss recent precedent language, which manifests as under-sourced rows and more `I` verdicts than needed.
+
+At the start of every fill run, `fill-rfp-matrix` calls the `corpus_stats` tool and records the corpus's total-rows and year-range in its grounding note. If the corpus's most recent year is more than ~3 months old or the total-rows count looks low, flag the staleness to the SE and recommend a rebuild before proceeding.
