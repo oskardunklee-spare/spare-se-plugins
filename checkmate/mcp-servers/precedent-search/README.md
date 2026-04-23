@@ -1,9 +1,9 @@
 # checkmate-precedents MCP server
 
-Deterministic per-row precedent lookup for the Checkmate plugin. Loads a
-precedent corpus (`precedents.jsonl`) and exposes a `search_precedents`
-tool that returns the top-k TF-IDF matches for any given requirement
-text.
+Deterministic per-row precedent lookup for the Checkmate plugin. Loads
+the session's precedent corpus (`precedents.jsonl`) and exposes a
+`search_precedents` tool that returns the top-k TF-IDF matches for any
+given requirement text.
 
 This server is invoked automatically by Checkmate's `fill-rfp-matrix`
 and `review-rfp-draft` skills. It is the mechanism by which Rule 2
@@ -24,18 +24,16 @@ The server looks for `precedents.jsonl` in this order, first hit wins:
 1. `$CHECKMATE_PRECEDENTS_PATH`, if set. The plugin does not set this
    by default; it is available for advanced overrides.
 2. `~/.cache/checkmate/precedents.jsonl`. This is the expected
-   production path. The `fill-rfp-matrix` skill populates it at
-   session start by pulling the master corpus from Drive
-   (`Spare General/_checkmate/precedents.jsonl`) via the Drive
-   connector.
+   production path. The `fill-rfp-matrix` skill populates it at the
+   start of every fill session by walking `Spare General` via the
+   Drive connector.
 3. `$CLAUDE_PLUGIN_ROOT/data/precedents.jsonl`. The bundled 10-row
    sample. Used for smoke-testing the server and plugin install flow,
    not for real RFP fills.
 
 The server hot-reloads the corpus on every tool call if the file's
-mtime has changed, so the first `search_precedents` call in a session
-automatically picks up the freshly-pulled corpus without restarting
-the server.
+mtime has changed, so each fill session's fresh corpus is picked up
+automatically without restarting the server.
 
 ## What the server exposes
 
@@ -61,7 +59,8 @@ never `N`.
 
 Returns total row count, source files, agencies, year range, verdict
 distribution, and the path of the corpus file currently loaded. Used
-at the start of a fill run as a grounding note.
+at the end of the in-session rebuild to confirm the corpus is real
+and populated before any row is drafted.
 
 ## Implementation notes
 
@@ -76,18 +75,12 @@ at the start of a fill run as a grounding note.
   silently fall back to general knowledge; that defeats the entire
   purpose.
 
-## Rebuilding the corpus
+## How the corpus gets populated
 
-The `rebuild-precedent-corpus` skill walks `Spare General` via the
-Drive connector, parses every matrix, and writes
-`precedents.jsonl` back to Drive at `Spare General/_checkmate/precedents.jsonl`.
-From there, `fill-rfp-matrix` pulls it to the local cache at session
-start.
-
-To run the rebuild on a schedule, use Cowork's built-in `schedule`
-skill, e.g. "Schedule the Checkmate precedent rebuild to run every
-Monday at 6am."
-
-The Checkmate contribution ritual assumes the corpus is rebuilt
-weekly, or whenever a new completed RFP response lands in
-`Spare General`.
+The `fill-rfp-matrix` skill walks the `Spare General` Shared Drive via
+the Drive connector at the start of every fill, parses every matrix
+modified in the past 18 months, and writes the result to
+`~/.cache/checkmate/precedents.jsonl`. The server hot-reloads on
+mtime and serves from that file for the rest of the session. There is
+no persistent shared corpus and no scheduled rebuild; every fill sees
+fresh Drive state.

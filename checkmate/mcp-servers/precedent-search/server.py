@@ -19,8 +19,8 @@ restarting the server.
 
 Path resolution (first hit wins):
   1. $CHECKMATE_PRECEDENTS_PATH   (set by plugin .mcp.json)
-  2. ~/.cache/checkmate/precedents.jsonl   (session cache written by the
-     fill-rfp-matrix skill at session start)
+  2. ~/.cache/checkmate/precedents.jsonl   (session cache written by
+     fill-rfp-matrix's in-session rebuild step)
   3. $CLAUDE_PLUGIN_ROOT/data/precedents.jsonl   (bundled sample, used
      only for smoke tests; real runs expect #2 to be populated)
 
@@ -139,7 +139,7 @@ def _load_precedents(path: Path) -> list[Precedent]:
     if not path.exists():
         raise FileNotFoundError(
             f"Precedent corpus not found at {path}. "
-            "Run the rebuild-precedent-corpus skill to generate it."
+            "Start fill-rfp-matrix to rebuild from Spare General."
         )
     precedents: list[Precedent] = []
     with path.open("r", encoding="utf-8") as f:
@@ -170,7 +170,7 @@ def _load_precedents(path: Path) -> list[Precedent]:
     if not precedents:
         raise ValueError(
             f"Precedent corpus at {path} is empty. "
-            "Re-run the rebuild-precedent-corpus skill."
+            "Re-run fill-rfp-matrix to rebuild from Spare General."
         )
     return precedents
 
@@ -196,7 +196,7 @@ def _resolve_path() -> Path:
     raise FileNotFoundError(
         "No precedent corpus found. Expected one of:\n  "
         + "\n  ".join(str(c) for c in candidates)
-        + "\nRun the rebuild-precedent-corpus skill to generate the corpus."
+        + "\nStart fill-rfp-matrix to rebuild the corpus from Spare General."
     )
 
 

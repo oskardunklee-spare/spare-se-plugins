@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Parse a single matrix file (xlsx or csv) that was downloaded from Drive
-into a list of precedent rows. Invoked by the rebuild-precedent-corpus
-skill for every matrix file discovered in Spare General.
+into a list of precedent rows. Invoked by the fill-rfp-matrix skill
+during its in-session rebuild step for every matrix file discovered in
+Spare General.
 
 Usage:
     python parse_matrix.py \
@@ -111,7 +112,7 @@ def _parse_xlsx(path: Path):
     except ImportError:
         print(
             "openpyxl is not available in this environment. The "
-            "rebuild-precedent-corpus skill should install it at session "
+            "fill-rfp-matrix skill should install it at session "
             "start via `pip install openpyxl --break-system-packages`.",
             file=sys.stderr,
         )

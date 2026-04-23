@@ -42,9 +42,11 @@ Fit assessment is a separate concern. If the user wants a fit check, they will a
 
 If after executing the mandatory search sequence (below) you genuinely cannot find evidence one way or the other for a specific row, the verdict is `I` (Need More Info) in the agency's vocabulary, with reasoning that names the sources searched and what was found. Not a no-bid recommendation.
 
-## Mandatory first action: pull the precedent corpus from Drive
+## Mandatory first action: build the precedent corpus in-session
 
-Before opening the matrix, before detecting schema, before anything else.
+Before opening the matrix, before detecting schema, before anything else. Every fill builds a fresh corpus from Spare General. Nothing is cached across sessions. Nothing is published back to Drive. The corpus lives and dies with this session.
+
+Rationale: Spare General content can change during the day. A cached corpus from this morning can be wrong by this afternoon. The 2-3 minutes this adds to a fill is cheap insurance against drafting from stale precedents.
 
 ### Spare General is a Google Shared Drive
 
@@ -61,29 +63,111 @@ When calling any Drive connector search or list tool, pass:
 - `includeItemsFromAllDrives: true`
 - `corpora: "drive"` with `driveId: 0AIjutkwbzFjJUk9PVA` (or `"allDrives"` as broader fallback)
 
-If the root ID ever changes, update both this file and `skills/rebuild-precedent-corpus/SKILL.md`.
+If the root ID ever changes, update this file.
 
 ### Steps
 
-1. **Locate `Spare General/_checkmate/precedents.jsonl` in Drive.** Primary path is by hardcoded Shared Drive root ID; name-based is the backup.
+Execute in order. Do not skip. Do not attempt to walk Drive by any mechanism other than the Cowork connector.
 
-   **Primary (by hardcoded ID):**
-   - Search inside `0AIjutkwbzFjJUk9PVA` for the `_checkmate` subfolder, then inside that for `precedents.jsonl`. Use Shared Drive flags on every call.
+#### 1. Install openpyxl in the sandbox
 
-   **Backup (by name):**
-   - If the hardcoded ID lookup fails (404, permission denied, or connector rejects Shared Drive IDs), search by name across Shared Drives: `q: "name = 'Spare General' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"` with `corpora: "allDrives"`, then descend to `_checkmate/precedents.jsonl`.
+```bash
+pip install openpyxl --break-system-packages 2>&1 | tail -1
+```
 
-2. **Download the file into the local cache.**
+If this fails, stop and tell the user. The rebuild needs openpyxl to parse xlsx matrices. Do not proceed with partial parsing.
+
+#### 2. Prepare a session scratch directory and target the local cache path
+
+```bash
+SCRATCH="$(pwd)/checkmate-rebuild"
+rm -rf "$SCRATCH"
+mkdir -p "$SCRATCH/downloads"
+: > "$SCRATCH/precedents.jsonl"
+
+mkdir -p ~/.cache/checkmate
+```
+
+Final output goes to `~/.cache/checkmate/precedents.jsonl`. The MCP server resolves that path automatically and hot-reloads on mtime change.
+
+#### 3. Resolve the Spare General Shared Drive root
+
+**Primary (by hardcoded ID):** call `get_file_metadata` on `fileId = "0AIjutkwbzFjJUk9PVA"` with `supportsAllDrives: true`. Record as `$DRIVE_ROOT_ID`.
+
+**Backup (by name):** if the hardcoded ID fails, search by name: `q: "name = 'Spare General' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"` with `corpora: "allDrives"`, `supportsAllDrives: true`, `includeItemsFromAllDrives: true`.
+
+**If both fail:** stop. Report what was tried. Do not proceed with the bundled 10-row sample.
+
+#### 4. Walk the Shared Drive recursively, filtered to the last 18 months
+
+Default filter: only matrices whose `modifiedTime` is within the past 18 months. This keeps the walk fast and the corpus relevant. If the user explicitly asks for the full history, drop the filter.
+
+Use the connector's file-search tool with these parameters on every call:
+
+- `q: "'<parent_id>' in parents and trashed = false and modifiedTime > '<cutoff>'"` where `<cutoff>` is ISO-8601 18 months ago
+- `supportsAllDrives: true`
+- `includeItemsFromAllDrives: true`
+- `corpora: "drive"` with `driveId: $DRIVE_ROOT_ID`
+
+BFS from `$DRIVE_ROOT_ID` through every subfolder. Folders themselves are not subject to the modifiedTime filter. Apply the filter only to terminal files. Collect metadata (id, name, mimeType, webViewLink, modifiedTime, parents) for:
+
+- `.xlsx` (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`)
+- `.csv` (`text/csv`)
+- Google Sheets (`application/vnd.google-apps.spreadsheet`)
+
+Ignore everything else (PDFs, Docs, images).
+
+If the first list call returns zero children for `$DRIVE_ROOT_ID`, halt. Zero children almost always means the Shared Drive flags were dropped somewhere; it is not a real empty-drive result.
+
+#### 5. Download and parse every matrix
+
+For each file in the list:
+
+1. Download via `download_file_content` (or equivalent) with `supportsAllDrives: true`. Save to `$SCRATCH/downloads/<file_id>.<ext>`. For Google Sheets, export as xlsx.
+2. Invoke the parser:
 
    ```bash
-   mkdir -p ~/.cache/checkmate
+   python3 <plugin-root>/skills/fill-rfp-matrix/scripts/parse_matrix.py \
+       --input "$SCRATCH/downloads/<file_id>.<ext>" \
+       --source-file "<original filename from Drive>" \
+       --source-id "<drive file id>" \
+       --url "<drive webViewLink if available>" \
+       --output "$SCRATCH/precedents.jsonl"
    ```
 
-   Use the Drive connector's `download_file_content` (or equivalent) on the resolved fileId with `supportsAllDrives: true`, and write the bytes to `~/.cache/checkmate/precedents.jsonl`.
+3. Exit code 0 means rows were written. Exit code 2 means the file was not a recognizable matrix (skip). Exit code 3 means a parse error (log and continue).
 
-3. **Confirm the corpus is loaded** by calling the `corpus_stats` tool on the `checkmate-precedents` MCP server. The output is your grounding note: row count, source files, agencies, year range. Report this to the user before drafting any row. The MCP server hot-reloads on mtime change, so the just-downloaded file is picked up automatically.
+#### 6. Validate the staging file and promote to the cache
 
-4. **Do not begin drafting until `corpus_stats` returns a populated corpus from the pulled file** (more than the 10-row bundled sample). If it returns an error, zero rows, or only the 10 sample rows from the Laramie precedent file, stop and run `rebuild-precedent-corpus` first. Do not fall back to general knowledge. Do not draft from the bundled sample.
+```bash
+python3 -c "
+import json, sys
+n = 0
+with open('$SCRATCH/precedents.jsonl') as f:
+    for line_no, line in enumerate(f, 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            json.loads(line)
+        except Exception as e:
+            sys.exit(f'line {line_no}: {e}')
+        n += 1
+print(f'ok: {n} valid precedent rows')
+"
+
+cp "$SCRATCH/precedents.jsonl" ~/.cache/checkmate/precedents.jsonl
+```
+
+If row count is zero, stop. Do not overwrite the cache with an empty corpus. Zero almost always means the Drive walk returned nothing; it's a flag issue, not a real empty drive.
+
+#### 7. Confirm the corpus is loaded
+
+Call the `corpus_stats` tool on the `checkmate-precedents` MCP server. Report its output as the grounding note to the user: total rows, unique source files, agencies, year range. The MCP server hot-reloads on mtime change, so the just-written file is picked up automatically.
+
+If `corpus_stats` returns only the 10-row bundled sample (unique_source_files == 1 AND the sole file name contains "[SAMPLE]"), something went wrong with the rebuild. Stop and tell the user. Do not draft from the sample.
+
+Only after `corpus_stats` confirms a real, populated corpus do you begin drafting rows.
 
 ## Before drafting any row
 
@@ -136,7 +220,7 @@ Yellow-highlighted bold headers. A row with no citation in the reasoning column 
 
 ### `corpus_stats` is already your grounding note
 
-The `corpus_stats` call you ran as part of the mandatory first action doubles as your grounding note for the user: row count, source files, agencies, year range. If the corpus is empty or the server reports an error, stop and tell the user to run the `rebuild-precedent-corpus` skill. Do not continue on the bundled sample corpus.
+The `corpus_stats` call at the end of the in-session rebuild doubles as your grounding note for the user: row count, source files, agencies, year range. If the corpus is empty or the server reports an error, stop and tell the user. Do not continue on the bundled sample corpus.
 
 ### Every row cites at least one source
 

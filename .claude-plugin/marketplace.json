@@ -7,8 +7,8 @@
     {
       "name": "checkmate",
       "source": "./checkmate",
-      "description": "Draft and QA RFP compliance matrices in Spare's voice, with deterministic per-row precedent lookup against Spare's entire past-RFP corpus. Pure-stdlib MCP server indexes every answered row from Spare General and returns TF-IDF-matched precedents for each new requirement. Corpus refresh is a Cowork-native skill that uses the Drive connector, no terminal or Google Cloud setup. Forbids no-bid and scope-judgment outputs. Built for the Spare SE team to replace Responsive.",
-      "version": "1.1.1",
+      "description": "Draft and QA RFP compliance matrices in Spare's voice, with deterministic per-row precedent lookup built fresh from Spare's past-RFP corpus at the start of every fill. Pure-stdlib MCP server indexes the per-session corpus and returns TF-IDF-matched precedents for each new requirement. No shared file, no schedule, no stale caches. Forbids no-bid and scope-judgment outputs. Built for the Spare SE team to replace Responsive.",
+      "version": "1.2.0",
       "category": "solutions-engineering",
       "keywords": ["rfp", "compliance", "matrix", "solutions-engineering", "spare"]
     }

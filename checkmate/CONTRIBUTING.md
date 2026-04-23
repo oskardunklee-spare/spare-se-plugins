@@ -6,25 +6,13 @@ Checkmate gets better every time an SE uses it on a real RFP. The value compound
 
 After every submitted RFP, two things happen:
 
-### 1. Rebuild the precedent corpus (1 minute, or automatic)
+### 1. Drop the response in `Spare General`
 
-The submitted RFP response should land in the `Spare General` Drive folder. Once it is there, ask Cowork to refresh the corpus:
-
-> "Rebuild the Checkmate precedent corpus."
-
-The `rebuild-precedent-corpus` skill walks `Spare General` via the Drive connector, parses every matrix, and publishes a fresh `precedents.jsonl` back to Drive at `Spare General/_checkmate/precedents.jsonl`. The MCP server hot-reloads on the next `search_precedents` call.
-
-Or, better, let the weekly scheduled job handle it automatically. Set it up once via Cowork's `schedule` skill:
-
-> "Schedule the Checkmate precedent rebuild to run every Monday at 6am."
-
-No terminal, no pip install, no Google Cloud project, no OAuth flow. Just the Drive connector Cowork already has.
-
-This is the highest-leverage contribution you can make. Everything the plugin searches against lives in that JSONL; a stale corpus means the next SE gets worse precedent matches.
+The submitted RFP response should land in the `Spare General` Shared Drive folder (or wherever SE convention places it within that drive). Nothing else is required. The next SE who runs a fill will walk `Spare General` fresh as part of their session's mandatory first action and pick up your submission automatically. No corpus rebuild, no schedule, no shared file to update.
 
 ### 2. Update reference files (10 minutes)
 
-1. **`skills/fill-rfp-matrix/references/known-gaps.md`**, if the wording of a gap disclosure improved during review. This file holds the disclosure *patterns*, not specific cached gap claims; the claims come from the live corpus.
+1. **`skills/fill-rfp-matrix/references/known-gaps.md`**, if the wording of a gap disclosure improved during review. This file holds the disclosure *patterns*, not specific cached gap claims; the claims come from the live per-session corpus.
 2. **`skills/fill-rfp-matrix/references/voice-templates.md`**, if a new reusable structural template emerged, or if a banned phrase showed up and needs to be added to the never-use list
 3. **`skills/fill-rfp-matrix/references/schema-detection.md`**, if the RFP had a new matrix layout, verdict vocabulary, or column structure not already documented
 4. **`skills/fill-rfp-matrix/references/competitive-positioning.md`**, if the RFP named a new competitor or Klue published updated battlecards
@@ -58,8 +46,8 @@ The whole point of Checkmate is to produce RFP responses Spare's team can trust.
 
 The plugin uses semver. Cut a new version any time a reference file, skill, or MCP server is updated:
 
-- **Patch** (1.1.1, 1.1.2) for reference-file updates, typo fixes, clarifications
-- **Minor** (1.2.0, 1.3.0) for new rules, new reference files, or new skills
+- **Patch** (1.2.1, 1.2.2) for reference-file updates, typo fixes, clarifications
+- **Minor** (1.3.0, 1.4.0) for new rules, new reference files, or new skills
 - **Major** (2.0.0) when the plugin architecture changes in a backwards-incompatible way
 
 Update the version in `.claude-plugin/plugin.json` when you cut a new release.

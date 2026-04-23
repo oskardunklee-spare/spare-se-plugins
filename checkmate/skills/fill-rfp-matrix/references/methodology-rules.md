@@ -131,6 +131,6 @@ Corollary (enforced by `review-rfp-draft`): every citation in the Internal Reaso
 
 ## Rule 22: Corpus freshness
 
-The `precedents.jsonl` corpus consumed by the MCP server is maintained by the `rebuild-precedent-corpus` skill, which walks `Spare General` via the Drive connector. Re-run it weekly (the `schedule` skill can do this automatically) and whenever a new completed RFP response lands in `Spare General`. An out-of-date corpus causes Checkmate to miss recent precedent language, which manifests as under-sourced rows and more `I` verdicts than needed.
+The `precedents.jsonl` corpus consumed by the MCP server is built in-session at the start of every fill. `fill-rfp-matrix`'s mandatory first action walks `Spare General` via the Drive connector, parses every matrix modified in the past 18 months, and writes the corpus to `~/.cache/checkmate/precedents.jsonl` for this session only. There is no shared corpus, no scheduled rebuild, and no TTL. Every fill sees whatever is in `Spare General` right now.
 
-At the start of every fill run, `fill-rfp-matrix` pulls the published corpus from Drive into the local cache and calls the `corpus_stats` tool, recording the corpus's total-rows and year-range in its grounding note. If the corpus's most recent year is more than ~3 months old or the total-rows count looks low, flag the staleness to the SE and recommend a rebuild before proceeding.
+At the end of the rebuild, `fill-rfp-matrix` calls the `corpus_stats` tool and records total-rows, year-range, and source-file count as its grounding note. If the corpus returned is the bundled 10-row sample (which means the Drive walk failed silently), halt and report. Do not draft from the sample.
