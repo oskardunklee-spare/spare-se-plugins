@@ -1,13 +1,10 @@
 {
   "mcpServers": {
     "checkmate-precedents": {
-      "command": "python",
+      "command": "python3",
       "args": [
         "${CLAUDE_PLUGIN_ROOT}/mcp-servers/precedent-search/server.py"
-      ],
-      "env": {
-        "CHECKMATE_PRECEDENTS_PATH": "${CLAUDE_PLUGIN_ROOT}/data/precedents.jsonl"
-      }
+      ]
     }
   }
 }

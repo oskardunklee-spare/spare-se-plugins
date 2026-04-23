@@ -6,16 +6,19 @@ Checkmate gets better every time an SE uses it on a real RFP. The value compound
 
 After every submitted RFP, two things happen:
 
-### 1. Rebuild the precedent corpus (5 minutes)
+### 1. Rebuild the precedent corpus (1 minute, or automatic)
 
-The submitted RFP response should land in the `Spare General` Drive folder. Once it is there, re-run the index builder so the new answers are searchable on the next fill run:
+The submitted RFP response should land in the `Spare General` Drive folder. Once it is there, ask Cowork to refresh the corpus:
 
-```bash
-cd <plugin-root>/scripts
-python build-precedent-index.py
-```
+> "Rebuild the Checkmate precedent corpus."
 
-The script walks the whole folder and rewrites `data/precedents.jsonl`. The MCP server picks up the new corpus at the next plugin reload.
+The `rebuild-precedent-corpus` skill walks `Spare General` via the Drive connector, parses every matrix, and publishes a fresh `precedents.jsonl` back to Drive at `Spare General/_checkmate/precedents.jsonl`. The MCP server hot-reloads on the next `search_precedents` call.
+
+Or, better, let the weekly scheduled job handle it automatically. Set it up once via Cowork's `schedule` skill:
+
+> "Schedule the Checkmate precedent rebuild to run every Monday at 6am."
+
+No terminal, no pip install, no Google Cloud project, no OAuth flow. Just the Drive connector Cowork already has.
 
 This is the highest-leverage contribution you can make. Everything the plugin searches against lives in that JSONL; a stale corpus means the next SE gets worse precedent matches.
 
@@ -53,11 +56,11 @@ The whole point of Checkmate is to produce RFP responses Spare's team can trust.
 
 ## Versioning
 
-The plugin uses semver starting at 0.1.0. Cut a new version any time a reference file is updated:
+The plugin uses semver. Cut a new version any time a reference file, skill, or MCP server is updated:
 
-- **Patch** (0.1.1, 0.1.2) for reference-file updates, typo fixes, clarifications
-- **Minor** (0.2.0, 0.3.0) for new rules or new reference files
-- **Major** (1.0.0) when the plugin is considered stable and the SE team has agreed on the full methodology
+- **Patch** (1.1.1, 1.1.2) for reference-file updates, typo fixes, clarifications
+- **Minor** (1.2.0, 1.3.0) for new rules, new reference files, or new skills
+- **Major** (2.0.0) when the plugin architecture changes in a backwards-incompatible way
 
 Update the version in `.claude-plugin/plugin.json` when you cut a new release.
 

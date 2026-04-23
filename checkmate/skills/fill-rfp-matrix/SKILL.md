@@ -42,16 +42,25 @@ Fit assessment is a separate concern. If the user wants a fit check, they will a
 
 If after executing the mandatory search sequence (below) you genuinely cannot find evidence one way or the other for a specific row, the verdict is `I` (Need More Info) in the agency's vocabulary, with reasoning that names the sources searched and what was found. Not a no-bid recommendation.
 
-## Mandatory first action: anchor in Spare General
+## Mandatory first action: pull the precedent corpus from Drive
 
 Before opening the matrix, before detecting schema, before anything else:
 
-1. **Use the Google Drive search tool to locate the folder titled `Spare General`.** This is the team's master Drive folder. Everything downstream sources from here.
-2. **List the contents of `Spare General`.** Look for subfolders related to the RFP category at hand. For EAM RFPs, look for folders named like `EAM RFP - <date>`, `Potential EAM RFP`, `<Agency> EAM RFP`, or files named with `EAM` in the title.
-3. **Read at least one completed EAM (or domain-equivalent) response matrix in full before drafting any row.** Known precedents include: `Laramie RFP - Spare EAM Response Matrix`, `Calgary_EAM_Specs_with_Responses_SpareOnly_updated.csv`, `TCAT EAM RFP`, `SolTrans EAM RFP`, `NFTA EAM RFP`, `Valley Transit EAM RFP`, and `Spare's Master Sample RFP Tech Spec Requirements`. If the incoming RFP is not EAM-focused, adapt the search to the relevant category (paratransit, microtransit, fixed-route, fare, rider experience) but always start from `Spare General`.
-4. **Do not begin drafting until you have named at least one concrete precedent file from `Spare General` that you will use as a source.** Your first output, before any row is filled, should be a short "grounding note" identifying which Drive files you loaded and what they cover.
+1. **Pull the master precedent corpus from Drive.** Use the Google Drive connector to download `Spare General/_checkmate/precedents.jsonl` into the local cache at `~/.cache/checkmate/precedents.jsonl`. This is the file the `checkmate-precedents` MCP server will index and search against for every row.
 
-If you cannot locate `Spare General` or any EAM precedent within it, stop and tell the user; do not fall back to general knowledge.
+   ```bash
+   mkdir -p ~/.cache/checkmate
+   # Download Spare General/_checkmate/precedents.jsonl via the Drive connector
+   # and write it to ~/.cache/checkmate/precedents.jsonl.
+   ```
+
+   The MCP server hot-reloads on mtime change, so the next `search_precedents` call picks up the fresh corpus automatically. No restart required.
+
+   If the Drive connector cannot find `Spare General/_checkmate/precedents.jsonl`, run the `rebuild-precedent-corpus` skill first, then retry this step. Do not proceed with the bundled sample corpus; it is for smoke tests only.
+
+2. **Confirm the corpus is loaded** by calling the `corpus_stats` tool on the `checkmate-precedents` MCP server. The output is your grounding note: row count, source files, agencies, year range. Report this to the user before drafting any row.
+
+3. **Do not begin drafting until `corpus_stats` returns a populated corpus.** If it returns an error or zero rows, stop and tell the user. Do not fall back to general knowledge.
 
 ## Before drafting any row
 
@@ -102,9 +111,9 @@ Yellow-highlighted bold headers. A row with no citation in the reasoning column 
 
 4. **Verdict is `I` only when** `search_precedents` returned no matches AND the docs MCP is silent on the specific capability. Never `N` from silence. Never "not a Spare deal" at the row level.
 
-### Before drafting any row: run `corpus_stats`
+### `corpus_stats` is already your grounding note
 
-Before the first row is drafted, call the `corpus_stats` tool on the `checkmate-precedents` MCP server to confirm the precedent corpus is loaded and populated. Include its output as your grounding note (how many rows, how many source files, which agencies, year range). If the corpus is empty or the server reports an error, stop and tell the user to run `scripts/build-precedent-index.py`.
+The `corpus_stats` call you ran as part of the mandatory first action doubles as your grounding note for the user: row count, source files, agencies, year range. If the corpus is empty or the server reports an error, stop and tell the user to run the `rebuild-precedent-corpus` skill. Do not continue on the bundled sample corpus.
 
 ### Every row cites at least one source
 

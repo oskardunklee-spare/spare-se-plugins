@@ -1,7 +1,7 @@
 {
   "name": "checkmate",
-  "version": "1.0.0",
-  "description": "Draft and QA RFP compliance matrices in Spare's voice, with deterministic per-row precedent lookup against Spare's entire past-RFP corpus. Bundled MCP server (checkmate-precedents) indexes every answered row from the Spare General Google Drive folder and returns TF-IDF-matched precedents for each new requirement, so every answer is sourced in code rather than prose. Forbids no-bid and scope-judgment outputs. Includes an offline index builder for weekly corpus refreshes. Built for the Spare SE team to replace Responsive.",
+  "version": "1.1.0",
+  "description": "Draft and QA RFP compliance matrices in Spare's voice, with deterministic per-row precedent lookup against Spare's entire past-RFP corpus. Bundled pure-stdlib MCP server (checkmate-precedents) indexes every answered row from the Spare General Google Drive folder and returns TF-IDF-matched precedents for each new requirement, so every answer is sourced in code rather than prose. Forbids no-bid and scope-judgment outputs. Corpus refresh is a Cowork-native skill that uses the Drive connector, no terminal or Google Cloud setup required.",
   "author": {
     "name": "Oskar Dunklee (SE)",
     "email": "oskar.dunklee@spare.com"

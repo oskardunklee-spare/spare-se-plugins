@@ -131,6 +131,6 @@ Corollary (enforced by `review-rfp-draft`): every citation in the Internal Reaso
 
 ## Rule 22: Corpus freshness
 
-The `precedents.jsonl` corpus consumed by the MCP server is built by `scripts/build-precedent-index.py`. Re-run the builder weekly, and whenever a new completed RFP response lands in `Spare General`. An out-of-date corpus causes Checkmate to miss recent precedent language, which manifests as under-sourced rows and more `I` verdicts than needed.
+The `precedents.jsonl` corpus consumed by the MCP server is maintained by the `rebuild-precedent-corpus` skill, which walks `Spare General` via the Drive connector. Re-run it weekly (the `schedule` skill can do this automatically) and whenever a new completed RFP response lands in `Spare General`. An out-of-date corpus causes Checkmate to miss recent precedent language, which manifests as under-sourced rows and more `I` verdicts than needed.
 
-At the start of every fill run, `fill-rfp-matrix` calls the `corpus_stats` tool and records the corpus's total-rows and year-range in its grounding note. If the corpus's most recent year is more than ~3 months old or the total-rows count looks low, flag the staleness to the SE and recommend a rebuild before proceeding.
+At the start of every fill run, `fill-rfp-matrix` pulls the published corpus from Drive into the local cache and calls the `corpus_stats` tool, recording the corpus's total-rows and year-range in its grounding note. If the corpus's most recent year is more than ~3 months old or the total-rows count looks low, flag the staleness to the SE and recommend a rebuild before proceeding.

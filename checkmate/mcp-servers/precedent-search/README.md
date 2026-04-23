@@ -1,41 +1,48 @@
 # checkmate-precedents MCP server
 
 Deterministic per-row precedent lookup for the Checkmate plugin. Loads a
-pre-built corpus of past Spare RFP answers and exposes a
-`search_precedents` tool that returns the top-k TF-IDF matches for any
-given requirement text.
+precedent corpus (`precedents.jsonl`) and exposes a `search_precedents`
+tool that returns the top-k TF-IDF matches for any given requirement
+text.
 
-This server is invoked automatically by Checkmate's `fill-rfp-matrix` and
-`review-rfp-draft` skills. It is the mechanism by which Rule 2 (source
-every row live) is enforced programmatically rather than through prose
-instructions that the model can ignore.
+This server is invoked automatically by Checkmate's `fill-rfp-matrix`
+and `review-rfp-draft` skills. It is the mechanism by which Rule 2
+(source every row live) is enforced programmatically rather than
+through prose instructions that the model can ignore.
 
-## Prerequisites
+## No installation required
 
-- Python 3.10+
-- `mcp>=1.0.0` (install from `requirements.txt`)
-- A built `precedents.jsonl` corpus. Run
-  `scripts/build-precedent-index.py` against the `Spare General` Drive
-  folder to generate one.
+The server is pure Python stdlib. No `pip install`, no virtualenv, no
+MCP package dependency. Any Python 3.10+ runtime that ships with
+Cowork or the host OS will work. Cowork spawns it automatically when
+Checkmate is active.
 
-## Installation
+## Corpus path resolution
 
-```bash
-cd <plugin-root>/mcp-servers/precedent-search
-pip install -r requirements.txt
-```
+The server looks for `precedents.jsonl` in this order, first hit wins:
 
-The plugin's `.mcp.json` already declares this server. Cowork will spawn
-it automatically when Checkmate is active, provided the
-`CHECKMATE_PRECEDENTS_PATH` environment variable points at a valid
-corpus file. That path is set by `.mcp.json` to
-`${CLAUDE_PLUGIN_ROOT}/data/precedents.jsonl` by default.
+1. `$CHECKMATE_PRECEDENTS_PATH`, if set. The plugin does not set this
+   by default; it is available for advanced overrides.
+2. `~/.cache/checkmate/precedents.jsonl`. This is the expected
+   production path. The `fill-rfp-matrix` skill populates it at
+   session start by pulling the master corpus from Drive
+   (`Spare General/_checkmate/precedents.jsonl`) via the Drive
+   connector.
+3. `$CLAUDE_PLUGIN_ROOT/data/precedents.jsonl`. The bundled 10-row
+   sample. Used for smoke-testing the server and plugin install flow,
+   not for real RFP fills.
+
+The server hot-reloads the corpus on every tool call if the file's
+mtime has changed, so the first `search_precedents` call in a session
+automatically picks up the freshly-pulled corpus without restarting
+the server.
 
 ## What the server exposes
 
 ### `search_precedents`
 
 Input:
+
 - `requirement_text` (string, required), full text of the matrix row's
   requirement
 - `top_k` (integer, default 3)
@@ -43,7 +50,7 @@ Input:
 
 Output: a JSON object containing the top-k matches, each with
 `source_file`, `source_row`, `agency`, `year`, `requirement`, `verdict`,
-`comment`, `similarity`, and a ready-to-paste `citation` string.
+`comment`, `similarity`, `url`, and a ready-to-paste `citation` string.
 
 If no matches meet the similarity threshold, the output includes a
 `verdict_hint: "I"` and reasoning explaining that no precedent was
@@ -52,23 +59,35 @@ never `N`.
 
 ### `corpus_stats`
 
-Returns total row count, source files, agencies, year range, and verdict
-distribution for the loaded corpus. Used at the start of a fill run as a
-grounding note.
+Returns total row count, source files, agencies, year range, verdict
+distribution, and the path of the corpus file currently loaded. Used
+at the start of a fill run as a grounding note.
 
 ## Implementation notes
 
 - Pure stdlib TF-IDF with cosine similarity. No sklearn dependency.
-- Index is built in-memory at process startup from the JSONL file.
-  For corpora under about 10,000 rows this completes in well under a
+- MCP JSON-RPC 2.0 implemented directly over stdio (newline-delimited
+  JSON, one message per line). No `mcp` package dependency.
+- Index is built in-memory at process startup and on hot-reload. For
+  corpora under about 10,000 rows this completes in well under a
   second; larger corpora may warrant pre-computed vectors persisted
-  alongside the JSONL (not implemented in v1.0).
-- The server fails loudly when the corpus file is missing or empty.
-  Do not silently fall back to general knowledge; that defeats the
-  entire purpose.
+  alongside the JSONL (not implemented).
+- The server fails loudly when no corpus path resolves. Do not
+  silently fall back to general knowledge; that defeats the entire
+  purpose.
 
 ## Rebuilding the corpus
 
-See `scripts/build-precedent-index.py`. The Checkmate contribution
-ritual assumes the corpus is rebuilt weekly, or whenever a new completed
-RFP response lands in `Spare General`.
+The `rebuild-precedent-corpus` skill walks `Spare General` via the
+Drive connector, parses every matrix, and writes
+`precedents.jsonl` back to Drive at `Spare General/_checkmate/precedents.jsonl`.
+From there, `fill-rfp-matrix` pulls it to the local cache at session
+start.
+
+To run the rebuild on a schedule, use Cowork's built-in `schedule`
+skill, e.g. "Schedule the Checkmate precedent rebuild to run every
+Monday at 6am."
+
+The Checkmate contribution ritual assumes the corpus is rebuilt
+weekly, or whenever a new completed RFP response lands in
+`Spare General`.

@@ -5,62 +5,57 @@ Fill and review RFP compliance matrices for Spare's Solutions Engineering team. 
 ## What's inside
 
 - **`extract-deal-context`**, runs once at the start of a new RFP workflow. Reads the agency's RFP PDF and produces a structured `<agency>-deal-context.md` artifact (agency identity, fleet snapshot, adjacent systems, timeline, scope restrictions, competitive signals, regulatory framework notes) that subsequent drafting sessions reference. The artifact contains facts only; no fit assessments or no-bid recommendations.
-- **`fill-rfp-matrix`**, core skill. For every row: calls the bundled `search_precedents` tool to retrieve matching past-RFP precedents from the `Spare General` Drive corpus, then drafts the Spare-voiced comment grounded in those precedents. Verdict is `I` (Need More Info) when no precedent meets the similarity threshold, never `N` from silence.
+- **`fill-rfp-matrix`**, core skill. Pulls the precedent corpus from Drive at session start, then for every row: calls the bundled `search_precedents` tool to retrieve matching past-RFP precedents and drafts the Spare-voiced comment grounded in those precedents. Verdict is `I` (Need More Info) when no precedent meets the similarity threshold, never `N` from silence.
 - **`review-rfp-draft`**, companion QA skill. Validates that every cited precedent actually came from `search_precedents` for that row's requirement, catches cross-row comment repetition (>70% text similarity), flags legal/over-disclosure risks, and produces a triage report.
-- **`mcp-servers/precedent-search/`**, a pure-Python MCP server bundled with the plugin. Loads `data/precedents.jsonl` and exposes `search_precedents` and `corpus_stats` tools. TF-IDF + cosine similarity, no heavy dependencies.
-- **`scripts/build-precedent-index.py`**, the offline Drive indexer. An SE runs this periodically to walk the `Spare General` folder, parse every matrix, and rebuild `data/precedents.jsonl`.
+- **`rebuild-precedent-corpus`**, Cowork-native corpus refresher. Walks `Spare General` via the Drive connector, parses every past-RFP matrix, and publishes a fresh `precedents.jsonl` back to Drive. No terminal work required for anyone, including the SE running it.
+- **`mcp-servers/precedent-search/`**, a pure-stdlib Python MCP server bundled with the plugin. Loads `precedents.jsonl` from the session cache, Drive-backed cache, or bundled sample (in that order) and exposes `search_precedents` and `corpus_stats` tools. TF-IDF + cosine similarity, zero third-party dependencies, hot-reloads on mtime change.
 
 ## Install and set up (first-time)
 
 1. Install the plugin via the Spare SE Plugins marketplace in Cowork.
-2. Install the MCP server's Python dependency:
+2. Confirm the Google Drive connector is installed and authenticated in Cowork (Settings, Connectors). No additional auth or Google Cloud setup required.
+3. Ask Cowork to run the rebuild skill once:
 
-   ```bash
-   pip install "mcp>=1.0.0"
-   ```
+   > "Rebuild the Checkmate precedent corpus."
 
-3. Build the precedent corpus (one-time plus weekly afterwards):
+   The skill walks `Spare General` via the Drive connector, parses every completed matrix, and writes the corpus back to Drive at `Spare General/_checkmate/precedents.jsonl`. It also caches a local copy at `~/.cache/checkmate/precedents.jsonl` so the current session sees it immediately.
 
-   ```bash
-   cd <plugin-root>/scripts
-   pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib openpyxl
-   python build-precedent-index.py
-   ```
+4. Schedule the rebuild to run weekly via Cowork's built-in `schedule` skill:
 
-   This walks `Spare General` and writes `data/precedents.jsonl`. See `scripts/README.md` for OAuth setup details.
+   > "Schedule the Checkmate precedent rebuild to run every Monday at 6am."
 
-The plugin ships with a 10-row sample `precedents.jsonl` so you can smoke-test without building the full corpus, but you must rebuild with real Drive content before running Checkmate on a live RFP.
+The plugin ships with a 10-row sample `precedents.jsonl` so you can smoke-test the install, but you must run the rebuild once before using Checkmate on a live RFP.
 
 ## How to use
 
 - **Start a new RFP**: drop the agency's RFP PDF into Cowork and ask *"Extract the deal context from this RFP."*
-- **Fill the matrix**: drop the compliance matrix file in and ask *"Fill this RFP matrix."* Checkmate will anchor in `Spare General`, call `search_precedents` for every row, and draft only from what the search returns.
+- **Fill the matrix**: drop the compliance matrix file in and ask *"Fill this RFP matrix."* Checkmate pulls the current corpus from Drive, calls `search_precedents` for every row, and drafts only from what the search returns.
 - **Before submission**: ask *"Review my RFP draft before I submit."* The review skill validates citations, catches repetition, flags legal risks, and produces a ready-to-submit checklist.
+- **After submission**: ask *"Rebuild the Checkmate precedent corpus."* (Or let the scheduled job handle it.)
 
 ## How the deterministic lookup works
 
-v1.0 replaces prose-based "search Drive for precedents" instructions with a concrete tool call.
+v1.1 replaces prose-based "search Drive for precedents" instructions with a concrete tool call, and the Drive-indexer step with a Cowork-native skill that needs no terminal and no Google Cloud project.
 
-1. `build-precedent-index.py` walks `Spare General`, extracts every answered row from every completed matrix, and writes a JSONL corpus with agency, year, requirement, verdict, comment, and source citation per row.
-2. At Checkmate invocation, the `checkmate-precedents` MCP server loads the corpus into memory and computes TF-IDF vectors.
-3. `fill-rfp-matrix` calls `search_precedents(requirement_text=<row>)` before drafting each row. The tool returns the top-3 nearest matches with similarity scores, verdicts, comment text, and citations.
-4. The drafted comment must derive from and cite one of the returned matches. No match above threshold (default 0.3) means the verdict is `I`, not a guess.
-5. `review-rfp-draft` re-runs the search on each filled row and verifies the cited precedent appears in the results. Cited precedents that don't appear are flagged as hallucination blockers.
+1. `rebuild-precedent-corpus` walks `Spare General` via the Drive connector, extracts every answered row from every completed matrix, and publishes a JSONL corpus back to Drive at `Spare General/_checkmate/precedents.jsonl`.
+2. At session start, `fill-rfp-matrix` pulls that file from Drive into `~/.cache/checkmate/precedents.jsonl`.
+3. The `checkmate-precedents` MCP server loads the corpus into memory and computes TF-IDF vectors. It hot-reloads on mtime change, so the fresh pull is picked up automatically on the first `search_precedents` call.
+4. `fill-rfp-matrix` calls `search_precedents(requirement_text=<row>)` before drafting each row. The tool returns the top-3 nearest matches with similarity scores, verdicts, comment text, and citations.
+5. The drafted comment must derive from and cite one of the returned matches. No match above threshold (default 0.3) means the verdict is `I`, not a guess.
+6. `review-rfp-draft` re-runs the search on each filled row and verifies the cited precedent appears in the results. Cited precedents that don't appear are flagged as hallucination blockers.
 
-This is how Rule 2 (source every row live) is enforced in code rather than in prose. The previous versions relied on Claude to follow prose rules; v1.0 relies on a tool call with structured output that Claude cannot fabricate.
+This is how Rule 2 (source every row live) is enforced in code rather than in prose.
 
 ## Connectors this plugin expects you to have installed
 
-Checkmate ships its own precedent-search MCP server. It also benefits from these Cowork connectors (not required; the precedent corpus handles most of the lift):
-
-- **Google Drive**, for additional cross-references beyond the indexed corpus
-- **Spare documentation MCP**, for current product-state confirmation (useful for "has this shipped since the last RFP?" checks)
-- **Notion**, for roadmap and internal context
-- **Glean**, for Klue battlecards and tribal knowledge
+- **Google Drive**, required. Used by `rebuild-precedent-corpus` to walk `Spare General`, and by `fill-rfp-matrix` to pull the published corpus at session start. Also used for additional cross-references beyond the indexed corpus.
+- **Spare documentation MCP**, recommended. Current product-state confirmation ("has this shipped since the last RFP?").
+- **Notion**, optional. Roadmap and internal context.
+- **Glean**, optional. Klue battlecards and tribal knowledge.
 
 ## Rebuilding the corpus
 
-Re-run `scripts/build-precedent-index.py` weekly, or whenever a new completed RFP response lands in `Spare General`. The MCP server loads the corpus at startup, so changes take effect on the next plugin reload.
+Use the `rebuild-precedent-corpus` skill. It is Cowork-native and needs no terminal, no pip install, and no Google Cloud setup. Re-run weekly (via the `schedule` skill) or whenever a new completed RFP response lands in `Spare General`. The MCP server hot-reloads on the next `search_precedents` call.
 
 ## Design principles
 

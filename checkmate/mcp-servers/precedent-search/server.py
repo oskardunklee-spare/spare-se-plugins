@@ -1,48 +1,47 @@
 """
 Checkmate precedent-search MCP server.
 
-Loads a precedents.jsonl corpus at startup (built offline by
-scripts/build-precedent-index.py against the Spare General Drive folder)
-and exposes a `search_precedents` tool that returns the top-k matching
-precedent rows for a given requirement text.
+Pure-stdlib implementation of MCP JSON-RPC 2.0 over stdio. No third-party
+dependencies. No pip install. Works on any Python 3.10+ that ships with
+the OS or with Cowork's bundled interpreter.
 
-Pure stdlib except for the `mcp` package. TF-IDF + cosine similarity
-implemented inline so there are no heavy dependencies at runtime.
+Loads a precedents.jsonl corpus from a resolved path (see _resolve_path
+below), indexes it with TF-IDF + cosine similarity, and exposes two
+tools:
 
-Environment:
-  CHECKMATE_PRECEDENTS_PATH  path to precedents.jsonl (required)
+  - search_precedents(requirement_text, top_k=3, min_similarity=0.3)
+  - corpus_stats()
 
-The precedents.jsonl format is one JSON object per line, each with:
-  {
-    "id":             stable identifier (file_id + row_ref)
-    "source_file":    "Laramie RFP - Spare EAM Response Matrix (Updated)"
-    "source_row":     "3.1.3"
-    "agency":         "City of Laramie"
-    "year":           2026
-    "requirement":    "Enable preventive maintenance scheduling by time, mileage, or hours."
-    "verdict":        "Y"
-    "comment":        "PM schedules can be set by calendar interval..."
-    "url":            "https://docs.google.com/spreadsheets/d/..."  (optional)
-  }
+The corpus is hot-reloaded on every tool call if the file's mtime has
+changed since the last load. This lets the `fill-rfp-matrix` skill pull
+a fresh corpus from Drive into the cache path at session start without
+restarting the server.
+
+Path resolution (first hit wins):
+  1. $CHECKMATE_PRECEDENTS_PATH   (set by plugin .mcp.json)
+  2. ~/.cache/checkmate/precedents.jsonl   (session cache written by the
+     fill-rfp-matrix skill at session start)
+  3. $CLAUDE_PLUGIN_ROOT/data/precedents.jsonl   (bundled sample, used
+     only for smoke tests; real runs expect #2 to be populated)
+
+The server fails loudly when no path resolves to an existing, non-empty
+corpus. Silent fallback to general knowledge would defeat the purpose.
+
+MCP wire format (stdio transport):
+  One JSON-RPC 2.0 object per line on stdin and stdout. No
+  Content-Length framing. Stderr is used for human-readable logs only.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import math
 import os
 import re
 import sys
 from collections import Counter
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.server.models import InitializationOptions
-from mcp.server import NotificationOptions
-from mcp.types import Tool, TextContent
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +131,7 @@ class PrecedentIndex:
 
 
 # ---------------------------------------------------------------------------
-# Corpus loading
+# Corpus loading with hot-reload
 # ---------------------------------------------------------------------------
 
 
@@ -140,7 +139,7 @@ def _load_precedents(path: Path) -> list[Precedent]:
     if not path.exists():
         raise FileNotFoundError(
             f"Precedent corpus not found at {path}. "
-            "Run scripts/build-precedent-index.py to generate it."
+            "Run the rebuild-precedent-corpus skill to generate it."
         )
     precedents: list[Precedent] = []
     with path.open("r", encoding="utf-8") as f:
@@ -171,154 +170,97 @@ def _load_precedents(path: Path) -> list[Precedent]:
     if not precedents:
         raise ValueError(
             f"Precedent corpus at {path} is empty. "
-            "Re-run scripts/build-precedent-index.py."
+            "Re-run the rebuild-precedent-corpus skill."
         )
     return precedents
 
 
-# ---------------------------------------------------------------------------
-# MCP server
-# ---------------------------------------------------------------------------
+def _resolve_path() -> Path:
+    """Find a usable corpus path. First hit wins."""
+    candidates: list[Path] = []
 
-server: Server = Server("checkmate-precedents")
+    env_path = os.environ.get("CHECKMATE_PRECEDENTS_PATH")
+    if env_path:
+        candidates.append(Path(env_path).expanduser())
+
+    candidates.append(Path.home() / ".cache" / "checkmate" / "precedents.jsonl")
+
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        candidates.append(Path(plugin_root) / "data" / "precedents.jsonl")
+
+    for c in candidates:
+        if c.exists() and c.stat().st_size > 0:
+            return c
+
+    raise FileNotFoundError(
+        "No precedent corpus found. Expected one of:\n  "
+        + "\n  ".join(str(c) for c in candidates)
+        + "\nRun the rebuild-precedent-corpus skill to generate the corpus."
+    )
+
+
 _INDEX: PrecedentIndex | None = None
+_INDEX_PATH: Path | None = None
+_INDEX_MTIME: float | None = None
 
 
 def _ensure_index() -> PrecedentIndex:
-    global _INDEX
-    if _INDEX is not None:
-        return _INDEX
-    path_str = os.environ.get("CHECKMATE_PRECEDENTS_PATH")
-    if not path_str:
-        raise RuntimeError(
-            "CHECKMATE_PRECEDENTS_PATH environment variable is not set. "
-            "The plugin's .mcp.json should configure it."
-        )
-    path = Path(path_str).expanduser()
-    precedents = _load_precedents(path)
-    _INDEX = PrecedentIndex(precedents)
-    print(
-        f"[checkmate-precedents] loaded {len(precedents)} precedent rows from {path}",
-        file=sys.stderr,
-    )
+    """Load or hot-reload the index.
+
+    Hot-reload triggers when the resolved path or its mtime has changed
+    since the last load. This lets the fill-rfp-matrix skill swap in a
+    freshly-pulled corpus without restarting the MCP server.
+    """
+    global _INDEX, _INDEX_PATH, _INDEX_MTIME
+
+    try:
+        path = _resolve_path()
+    except FileNotFoundError:
+        if _INDEX is not None:
+            # Corpus disappeared since last load; keep serving the old one
+            # rather than blowing up mid-session.
+            return _INDEX
+        raise
+
+    mtime = path.stat().st_mtime
+    if _INDEX is None or _INDEX_PATH != path or _INDEX_MTIME != mtime:
+        precedents = _load_precedents(path)
+        _INDEX = PrecedentIndex(precedents)
+        _INDEX_PATH = path
+        _INDEX_MTIME = mtime
+        _log(f"loaded {len(precedents)} precedent rows from {path}")
     return _INDEX
 
 
-@server.list_tools()
-async def list_tools() -> list[Tool]:
-    return [
-        Tool(
-            name="search_precedents",
-            description=(
-                "Search Spare's past-RFP precedent corpus for rows matching a given "
-                "requirement text. Returns the top-k nearest matches by TF-IDF cosine "
-                "similarity over the requirement texts. Every row drafted by the "
-                "fill-rfp-matrix skill MUST call this tool first and cite the returned "
-                "precedents; this is how Rule 2 (source every row live) is enforced "
-                "programmatically."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "requirement_text": {
-                        "type": "string",
-                        "description": (
-                            "The requirement text from the matrix row being drafted. "
-                            "Pass the full requirement, not a summary."
-                        ),
-                    },
-                    "top_k": {
-                        "type": "integer",
-                        "description": "Maximum number of precedents to return. Default 3.",
-                        "default": 3,
-                        "minimum": 1,
-                        "maximum": 20,
-                    },
-                    "min_similarity": {
-                        "type": "number",
-                        "description": (
-                            "Minimum cosine-similarity threshold. Default 0.3. "
-                            "If no matches meet the threshold, the verdict for the "
-                            "row should be 'I' (Need More Info) with reasoning "
-                            "naming what was searched."
-                        ),
-                        "default": 0.3,
-                        "minimum": 0.0,
-                        "maximum": 1.0,
-                    },
-                },
-                "required": ["requirement_text"],
-            },
-        ),
-        Tool(
-            name="corpus_stats",
-            description=(
-                "Return summary statistics about the loaded precedent corpus: "
-                "total rows, unique source files, agencies represented, year range. "
-                "Useful for a grounding note at the start of a matrix fill."
-            ),
-            inputSchema={"type": "object", "properties": {}},
-        ),
-    ]
+# ---------------------------------------------------------------------------
+# Tool handlers
+# ---------------------------------------------------------------------------
 
 
-@server.call_tool()
-async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-    try:
-        index = _ensure_index()
-    except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps({"error": f"Precedent corpus unavailable: {e}"}),
-            )
-        ]
-
-    if name == "search_precedents":
-        return _handle_search(index, arguments)
-    if name == "corpus_stats":
-        return _handle_stats(index)
-    return [
-        TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))
-    ]
-
-
-def _handle_search(index: PrecedentIndex, args: dict[str, Any]) -> list[TextContent]:
+def _search(args: dict[str, Any]) -> dict[str, Any]:
+    index = _ensure_index()
     query = args.get("requirement_text", "")
     if not isinstance(query, str) or not query.strip():
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {"error": "requirement_text must be a non-empty string"}
-                ),
-            )
-        ]
+        return {"error": "requirement_text must be a non-empty string"}
     top_k = int(args.get("top_k", 3))
     min_sim = float(args.get("min_similarity", 0.3))
     matches = index.search(query, top_k=top_k, min_similarity=min_sim)
     if not matches:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "query": query,
-                        "top_k": top_k,
-                        "min_similarity": min_sim,
-                        "matches": [],
-                        "verdict_hint": "I",
-                        "reasoning": (
-                            "No precedent row in the corpus met the minimum "
-                            f"similarity threshold of {min_sim} for this requirement. "
-                            "Per Rule 2 the verdict should be 'I' (Need More Info) "
-                            "with reasoning naming what was searched."
-                        ),
-                    }
-                ),
-            )
-        ]
-    result = {
+        return {
+            "query": query,
+            "top_k": top_k,
+            "min_similarity": min_sim,
+            "matches": [],
+            "verdict_hint": "I",
+            "reasoning": (
+                "No precedent row in the corpus met the minimum similarity "
+                f"threshold of {min_sim} for this requirement. Per Rule 2 the "
+                "verdict should be 'I' (Need More Info) with reasoning naming "
+                "what was searched."
+            ),
+        }
+    return {
         "query": query,
         "top_k": top_k,
         "min_similarity": min_sim,
@@ -338,56 +280,218 @@ def _handle_search(index: PrecedentIndex, args: dict[str, Any]) -> list[TextCont
             for p, sim in matches
         ],
     }
-    return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
 
-def _handle_stats(index: PrecedentIndex) -> list[TextContent]:
+def _stats(_args: dict[str, Any]) -> dict[str, Any]:
+    index = _ensure_index()
     files = sorted({p.source_file for p in index.precedents})
     agencies = sorted({p.agency for p in index.precedents if p.agency})
     years = sorted({p.year for p in index.precedents if p.year is not None})
     verdict_counts: Counter[str] = Counter(p.verdict for p in index.precedents)
-    stats = {
+    return {
         "total_rows": len(index.precedents),
         "unique_source_files": len(files),
         "source_files": files,
         "agencies": agencies,
         "year_range": [years[0], years[-1]] if years else None,
         "verdict_distribution": dict(verdict_counts.most_common()),
+        "corpus_path": str(_INDEX_PATH) if _INDEX_PATH else None,
     }
-    return [TextContent(type="text", text=json.dumps(stats, indent=2))]
+
+
+# Tool schemas (returned from tools/list)
+_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "search_precedents",
+        "description": (
+            "Search Spare's past-RFP precedent corpus for rows matching a given "
+            "requirement text. Returns the top-k nearest matches by TF-IDF cosine "
+            "similarity over the requirement texts. Every row drafted by the "
+            "fill-rfp-matrix skill MUST call this tool first and cite the returned "
+            "precedents; this is how Rule 2 (source every row live) is enforced "
+            "programmatically."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "requirement_text": {
+                    "type": "string",
+                    "description": (
+                        "The requirement text from the matrix row being drafted. "
+                        "Pass the full requirement, not a summary."
+                    ),
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Maximum number of precedents to return. Default 3.",
+                    "default": 3,
+                    "minimum": 1,
+                    "maximum": 20,
+                },
+                "min_similarity": {
+                    "type": "number",
+                    "description": (
+                        "Minimum cosine-similarity threshold. Default 0.3. "
+                        "If no matches meet the threshold, the verdict for the "
+                        "row should be 'I' (Need More Info) with reasoning "
+                        "naming what was searched."
+                    ),
+                    "default": 0.3,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                },
+            },
+            "required": ["requirement_text"],
+        },
+    },
+    {
+        "name": "corpus_stats",
+        "description": (
+            "Return summary statistics about the loaded precedent corpus: "
+            "total rows, unique source files, agencies represented, year range, "
+            "and the path of the corpus file currently loaded. Useful for a "
+            "grounding note at the start of a matrix fill."
+        ),
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+]
+
+
+_HANDLERS = {
+    "search_precedents": _search,
+    "corpus_stats": _stats,
+}
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# JSON-RPC 2.0 / MCP stdio loop
 # ---------------------------------------------------------------------------
 
 
-async def _run() -> None:
-    async with stdio_server() as (read, write):
-        await server.run(
-            read,
-            write,
-            InitializationOptions(
-                server_name="checkmate-precedents",
-                server_version="1.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
+# MCP protocol version this server implements. Clients negotiate this
+# during initialize; we echo back whatever the client asked for if we
+# support it, else our own.
+_PROTOCOL_VERSION = "2024-11-05"
+
+_SERVER_INFO = {
+    "name": "checkmate-precedents",
+    "version": "1.1.0",
+}
 
 
-def main() -> None:
+def _log(msg: str) -> None:
+    print(f"[checkmate-precedents] {msg}", file=sys.stderr, flush=True)
+
+
+def _write(obj: dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def _respond(req_id: Any, result: Any) -> None:
+    _write({"jsonrpc": "2.0", "id": req_id, "result": result})
+
+
+def _error(req_id: Any, code: int, message: str, data: Any = None) -> None:
+    err: dict[str, Any] = {"code": code, "message": message}
+    if data is not None:
+        err["data"] = data
+    _write({"jsonrpc": "2.0", "id": req_id, "error": err})
+
+
+def _handle_initialize(req_id: Any, params: dict[str, Any]) -> None:
+    client_protocol = params.get("protocolVersion") if isinstance(params, dict) else None
+    _respond(
+        req_id,
+        {
+            "protocolVersion": client_protocol or _PROTOCOL_VERSION,
+            "capabilities": {"tools": {"listChanged": False}},
+            "serverInfo": _SERVER_INFO,
+        },
+    )
+
+
+def _handle_tools_list(req_id: Any, _params: dict[str, Any]) -> None:
+    _respond(req_id, {"tools": _TOOLS})
+
+
+def _handle_tools_call(req_id: Any, params: dict[str, Any]) -> None:
+    name = params.get("name") if isinstance(params, dict) else None
+    args = params.get("arguments", {}) if isinstance(params, dict) else {}
+    handler = _HANDLERS.get(name or "")
+    if handler is None:
+        _error(req_id, -32601, f"Unknown tool: {name}")
+        return
+    try:
+        result = handler(args or {})
+    except FileNotFoundError as e:
+        result = {"error": f"Precedent corpus unavailable: {e}"}
+    except Exception as e:  # noqa: BLE001 — surface any failure as tool output
+        result = {"error": f"{type(e).__name__}: {e}"}
+    _respond(
+        req_id,
+        {
+            "content": [
+                {"type": "text", "text": json.dumps(result, indent=2, ensure_ascii=False)}
+            ],
+            "isError": "error" in result,
+        },
+    )
+
+
+def _handle_ping(req_id: Any, _params: dict[str, Any]) -> None:
+    _respond(req_id, {})
+
+
+_METHODS = {
+    "initialize": _handle_initialize,
+    "tools/list": _handle_tools_list,
+    "tools/call": _handle_tools_call,
+    "ping": _handle_ping,
+}
+
+
+def _serve() -> None:
+    # Warm up the index so startup errors surface in the logs immediately.
     try:
         _ensure_index()
-    except Exception as e:
-        print(
-            f"[checkmate-precedents] startup warning: {e}",
-            file=sys.stderr,
-        )
-    asyncio.run(_run())
+    except Exception as e:  # noqa: BLE001 — logged, not fatal
+        _log(f"startup warning: {e}")
+
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError as e:
+            _log(f"malformed JSON from client: {e}")
+            continue
+
+        req_id = msg.get("id")
+        method = msg.get("method")
+        params = msg.get("params") or {}
+
+        # Notifications have no id; we respond to requests only.
+        if method is None:
+            continue
+
+        # Handle notifications silently.
+        if req_id is None:
+            # notifications/initialized and similar; no response expected
+            continue
+
+        handler = _METHODS.get(method)
+        if handler is None:
+            _error(req_id, -32601, f"Method not found: {method}")
+            continue
+
+        try:
+            handler(req_id, params)
+        except Exception as e:  # noqa: BLE001
+            _log(f"handler error for {method}: {e}")
+            _error(req_id, -32603, f"Internal error: {e}")
 
 
 if __name__ == "__main__":
-    main()
+    _serve()
