@@ -44,23 +44,46 @@ If after executing the mandatory search sequence (below) you genuinely cannot fi
 
 ## Mandatory first action: pull the precedent corpus from Drive
 
-Before opening the matrix, before detecting schema, before anything else:
+Before opening the matrix, before detecting schema, before anything else.
 
-1. **Pull the master precedent corpus from Drive.** Use the Google Drive connector to download `Spare General/_checkmate/precedents.jsonl` into the local cache at `~/.cache/checkmate/precedents.jsonl`. This is the file the `checkmate-precedents` MCP server will index and search against for every row.
+### Spare General is a Google Shared Drive
+
+`Spare General` is a Shared Drive (Team Drive), not a My Drive folder. Its root ID starts with `0A`. Every Drive connector call that searches or lists content inside it MUST pass Shared Drive flags or Google returns zero results silently.
+
+```
+Shared Drive name: Spare General
+Shared Drive root ID: 0AIjutkwbzFjJUk9PVA
+```
+
+When calling any Drive connector search or list tool, pass:
+
+- `supportsAllDrives: true`
+- `includeItemsFromAllDrives: true`
+- `corpora: "drive"` with `driveId: 0AIjutkwbzFjJUk9PVA` (or `"allDrives"` as broader fallback)
+
+If the root ID ever changes, update both this file and `skills/rebuild-precedent-corpus/SKILL.md`.
+
+### Steps
+
+1. **Locate `Spare General/_checkmate/precedents.jsonl` in Drive.** Primary path is by hardcoded Shared Drive root ID; name-based is the backup.
+
+   **Primary (by hardcoded ID):**
+   - Search inside `0AIjutkwbzFjJUk9PVA` for the `_checkmate` subfolder, then inside that for `precedents.jsonl`. Use Shared Drive flags on every call.
+
+   **Backup (by name):**
+   - If the hardcoded ID lookup fails (404, permission denied, or connector rejects Shared Drive IDs), search by name across Shared Drives: `q: "name = 'Spare General' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"` with `corpora: "allDrives"`, then descend to `_checkmate/precedents.jsonl`.
+
+2. **Download the file into the local cache.**
 
    ```bash
    mkdir -p ~/.cache/checkmate
-   # Download Spare General/_checkmate/precedents.jsonl via the Drive connector
-   # and write it to ~/.cache/checkmate/precedents.jsonl.
    ```
 
-   The MCP server hot-reloads on mtime change, so the next `search_precedents` call picks up the fresh corpus automatically. No restart required.
+   Use the Drive connector's `download_file_content` (or equivalent) on the resolved fileId with `supportsAllDrives: true`, and write the bytes to `~/.cache/checkmate/precedents.jsonl`.
 
-   If the Drive connector cannot find `Spare General/_checkmate/precedents.jsonl`, run the `rebuild-precedent-corpus` skill first, then retry this step. Do not proceed with the bundled sample corpus; it is for smoke tests only.
+3. **Confirm the corpus is loaded** by calling the `corpus_stats` tool on the `checkmate-precedents` MCP server. The output is your grounding note: row count, source files, agencies, year range. Report this to the user before drafting any row. The MCP server hot-reloads on mtime change, so the just-downloaded file is picked up automatically.
 
-2. **Confirm the corpus is loaded** by calling the `corpus_stats` tool on the `checkmate-precedents` MCP server. The output is your grounding note: row count, source files, agencies, year range. Report this to the user before drafting any row.
-
-3. **Do not begin drafting until `corpus_stats` returns a populated corpus.** If it returns an error or zero rows, stop and tell the user. Do not fall back to general knowledge.
+4. **Do not begin drafting until `corpus_stats` returns a populated corpus from the pulled file** (more than the 10-row bundled sample). If it returns an error, zero rows, or only the 10 sample rows from the Laramie precedent file, stop and run `rebuild-precedent-corpus` first. Do not fall back to general knowledge. Do not draft from the bundled sample.
 
 ## Before drafting any row
 
