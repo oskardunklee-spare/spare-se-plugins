@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Logs
+*.log
+
+# Node (if any plugin bundles a JS MCP server)
+node_modules/
+
+# Python (if any plugin bundles a Python MCP server)
+__pycache__/
+*.pyc
+.venv/
+venv/
