@@ -8,6 +8,12 @@ A shared marketplace of plugins that extend Claude Desktop with SE-specific
 workflows — RFP response drafting, discovery recaps, Day of Service
 Simulation helpers, and more.
 
+## Plugins in this repo
+
+| Plugin | Version | What it does |
+|---|---|---|
+| [checkmate](./checkmate) | 0.2.0 | Fill and review RFP compliance matrices in Spare's voice. Extracts structured deal context, schema-aware drafting, confidence scoring per row, competitive positioning, pre-submission QA with legal guardrails. Replaces Responsive for RFP responses. |
+
 ## Using these plugins
 
 This repo is connected to Spare's Claude organization as a plugin marketplace.

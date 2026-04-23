@@ -1,0 +1,9 @@
+{
+  "name": "checkmate",
+  "version": "0.2.0",
+  "description": "Fill and review RFP compliance matrices in Spare's voice. Extracts structured deal context, schema-aware drafting, confidence scoring per row, competitive positioning, pre-submission QA with legal guardrails.",
+  "author": {
+    "name": "Spare Solutions Engineering"
+  },
+  "keywords": ["rfp", "compliance", "matrix", "solutions-engineering", "spare"]
+}
