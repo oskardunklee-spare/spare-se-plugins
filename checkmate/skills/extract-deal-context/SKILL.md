@@ -7,6 +7,20 @@ description: Extract and persist deal context from an agency's RFP document befo
 
 Read an agency's RFP document (PDF or Word) and produce a structured deal-context artifact. Every row that the fill-rfp-matrix skill subsequently drafts should draw from this artifact. The artifact is the difference between answers that feel generic and answers that sound like they were written by someone who read the RFP.
 
+## What this skill does NOT do
+
+This skill extracts facts. It does not assess whether Spare should bid, whether the RFP fits Spare's product domain, or whether any part of the scope is "out of scope for Spare." When the user invokes Checkmate, the bid decision is already made.
+
+Do not output:
+
+- "This RFP is out of Spare's domain"
+- "Recommend no-bid" or fit-check summaries
+- Option menus asking the user whether to bid
+- Warnings that certain sections appear unfit for Spare
+- "Risk and fit notes" that speculate about what Spare does or doesn't ship
+
+If the RFP genuinely has an unusual scope, simply report the scope as a fact (e.g., *"Attachments 2A and 2B are functional-requirement matrices with 201 and 411 rows respectively, covering capital asset accounting and EAM work-order management"*) without any judgment about whether Spare fits. Fit determination happens per-row during `fill-rfp-matrix`, sourced from past Spare RFP responses in Drive, not pre-judged from the RFP text during context extraction.
+
 ## When to run this
 
 Run this skill once, at the start of a new RFP response workflow, before any matrix drafting. The output is a single markdown file the SE can inspect, correct, and reuse across multiple drafting sessions for the same deal.
@@ -77,10 +91,12 @@ This section is the single highest-value piece of context for answer-drafting. L
 - Any indication the agency is shopping vs. renewing
 - Consulting / procurement advisor (e.g., `GFOA` assisted MTD)
 
-**Risk and fit notes**
-- Service modes or requirement families that appear out of Spare's product domain (if any). Be specific: list the section numbers and why.
-- Regulatory frameworks referenced (FTA, ADA, AODA, PIPEDA, GDPR, SOC2, GASB). Note compliance requirements that are material.
-- Anything unusual or agency-specific that a new SE reading the artifact should understand in 60 seconds.
+**Regulatory frameworks and notable context (facts only)**
+- Regulatory frameworks referenced in the RFP (FTA, ADA, AODA, PIPEDA, GDPR, SOC2, GASB, etc.) and any specific compliance clauses the bidder must respond to.
+- Matrix structure observed: number of attachments, rows per attachment, verdict vocabulary, evaluation-weight table if present.
+- Anything unusual or agency-specific that a new SE reading the artifact should understand in 60 seconds (e.g., *"GFOA is advising MTD through the selection"* or *"agency just procured ERP separately; EAM scope excludes financial functions"*).
+
+**Do not include a "risk and fit" or "Spare fit assessment" section.** Fit is determined per-row during drafting, by sourced evidence, not by pre-extraction speculation.
 
 ## Output artifact
 
@@ -96,7 +112,7 @@ At the start of every drafting session, fill-rfp-matrix looks for a deal-context
 - **Fleet snapshot**, to weave in quantified context ("sized appropriately for your 145-vehicle fleet and 11,000 annual work orders")
 - **Scope restrictions**, to avoid proposing solutions the agency has explicitly marked out of scope
 - **Competitive signals**, to pull the right positioning from competitive-positioning.md
-- **Risk and fit notes**, to determine which requirements to flag for SE attention
+- **Regulatory frameworks and notable context**, to shape what compliance claims need to appear in answers
 
 ## After the draft
 

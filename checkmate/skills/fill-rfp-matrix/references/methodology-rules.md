@@ -106,3 +106,15 @@ Both valid. Capability-first for short factual. Context-first for multi-dimensio
 ## Rule 18: Templates are structural, not claim-carrying
 
 The shapes in `voice-templates.md` are patterns. Specific products, features, numbers, and customer names inside a template come from cited sources, not from the template itself.
+
+## Rule 19: Repetition is a bug
+
+Every row's comment must specifically address that row's requirement text. Two rows in the same section with identical or near-identical comments is a bug, not a feature. If the requirement mentions barcode scanning, the comment mentions barcode. If the requirement mentions GIS integration, the comment mentions GIS. A comment that could paste onto any row is wrong.
+
+Concretely: `review-rfp-draft` runs a deterministic similarity check and flags rows whose comments share more than 70% of their text with a previous row. This class of error was the primary quality problem in v0.4.0 runs where the ERP-partner template was stamped verbatim onto 16+ unrelated rows. Do not let it happen again.
+
+Before handoff, skim your own output: read any 3 adjacent filled rows aloud. If they sound the same, they are the same, rewrite them.
+
+## Rule 20: Finishing a fill means the review skill has run
+
+`fill-rfp-matrix` does not output a "done" to the user until `review-rfp-draft` has been invoked on the filled file and returned a clean report (or the SE has explicitly overridden a flag). Do not hand back a matrix that has not been reviewed. The review skill is part of the drafting workflow, not a separate optional step.
