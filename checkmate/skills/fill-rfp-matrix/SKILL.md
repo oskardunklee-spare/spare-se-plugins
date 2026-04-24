@@ -98,13 +98,15 @@ CACHE="$CLAUDE_PLUGIN_ROOT/data/cache"
 mkdir -p "$CACHE"
 ```
 
-Three branches:
+Four branches:
 
-- **Warm start** — `$CACHE/precedents.jsonl` parses and `$CACHE/state.json` is present and valid JSON. This is the normal case after the first fill. Proceed to Step 4 (Drive diff).
+- **Warm start** — `$CACHE/precedents.jsonl` parses, `$CACHE/state.json` is valid JSON, AND `state.json.parser_version` matches the current parser version (`1.3.6`). This is the normal case after the first fill. Proceed to Step 4 (Drive diff).
 
-- **Pre-seeded warm start** — `$CACHE/precedents.jsonl` parses with more than the 10-row sample, but `$CACHE/state.json` is missing or malformed. The corpus was hand-placed (e.g. seeded after a prior session's walk, or restored from backup) and there is no manifest to diff against. **Do not do a full walk.** Post: *"Found existing corpus (N rows from M files). Bootstrapping state manifest from current Drive state; ready in ~1-2 minutes."* Then:
+- **Stale-parser cold start** — `$CACHE/precedents.jsonl` exists but `state.json.parser_version` is older than the current parser version, or absent. The corpus was built with a superseded `parse_matrix.py` and may include rows that the current parser would have filtered (internal columns, scratch-note content, etc.). **Force a cold start to rebuild cleanly.** Post: *"Corpus was built with parser version X; current version is 1.3.6. Rebuilding the corpus from Spare General to apply new filters. Expect 15-25 minutes."* Then skip to Step 5 (full walk).
+
+- **Pre-seeded warm start** — `$CACHE/precedents.jsonl` parses with more than the 10-row sample, but `$CACHE/state.json` is missing or malformed, AND the user confirms the JSONL was recently built with a current parser. The corpus was hand-placed (e.g. seeded after a prior session's walk, or restored from backup) and there is no manifest to diff against. **Do not do a full walk.** Post: *"Found existing corpus (N rows from M files). Bootstrapping state manifest from current Drive state; ready in ~1-2 minutes."* Then:
   - Run Step 4's **resolve-the-root** and **list-Drive-metadata** sub-steps only (no downloads, no parsing).
-  - Write `state.json` from the listed files as though this were an up-to-date walk.
+  - Write `state.json` from the listed files (including `parser_version`) as though this were an up-to-date walk.
   - Skip Steps 5 and 6 entirely. Trust the existing JSONL as-is.
   - Proceed to Step 7.
 
@@ -195,6 +197,7 @@ import json
 from datetime import datetime, timezone
 drive_files = $DRIVE_FILE_LIST_JSON  # list of {id, modifiedTime} from Step 4 (or full walk in cold-start)
 state = {
+    'parser_version': '1.3.6',  # bump whenever parse_matrix.py filtering logic changes
     'last_walk_at': datetime.now(timezone.utc).isoformat(),
     'files': {f['id']: f['modifiedTime'] for f in drive_files},
 }
@@ -203,6 +206,8 @@ with open('$CACHE/state.json', 'w') as f:
 print('state.json updated')
 "
 ```
+
+**If `parse_matrix.py` gets new filtering logic (new internal column patterns, new content markers, new schema heuristics), bump the `parser_version` string above AND in the stale-parser-cold-start check in Step 3.** That forces every SE's cache to rebuild cleanly on the next fill without requiring them to manually delete anything.
 
 #### 7. Confirm the corpus is loaded
 
