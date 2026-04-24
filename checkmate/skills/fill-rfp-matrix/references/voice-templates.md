@@ -2,6 +2,28 @@
 
 **Read this first.** These templates are skeletons, not sentences. Every filled-in row must be tailored to the specific requirement text of that row. If two rows in the same section end up with identical or near-identical comments, you did it wrong, the requirement text differs between rows, so the comment should too.
 
+## Anti-pattern: splicing the requirement text into the answer
+
+A grammar-and-tone failure mode where the model lifts the raw requirement phrase and inserts it as a noun into a generic sentence template. Examples caught in live runs:
+
+| Requirement | Bad draft |
+|---|---|
+| "Ability for system billing to integrate with ERP for AR" | *"Spare EAM addresses ability for system billing to integrate with ERP for AR."* |
+| "Restrict access to employee & vendor pay rates" | *"Spare EAM's native functionality includes restrict access to employee & vendor pay rates."* |
+| "Search for data using a variety of search criteria (wildcard, less than, greater than, etc.)" | *"Spare EAM is configured for search for data using a variety of search criteria."* |
+
+These all read broken because the requirement is being pasted as an object into a generic sentence skeleton ("Spare EAM addresses [X]", "is configured for [X]", "includes [X]") rather than responded to in natural English. An evaluator reads them as vendor boilerplate and marks the row down.
+
+**Rule: rephrase the requirement in plain English before answering it.** Read the requirement. Identify the specific capability it asks about. Write a sentence that answers "does Spare support this?" in natural language, then pull specifics from the cited precedent. Do not paste the requirement phrase into a sentence template.
+
+Good versions of the examples above:
+
+| Requirement | Better draft |
+|---|---|
+| "Ability for system billing to integrate with ERP for AR" | *"Spare's Open API exposes billing events (invoices, receivables, payment status) for integration with the agency's ERP. Specific field mappings and cadence are scoped during implementation."* |
+| "Restrict access to employee & vendor pay rates" | *"Spare EAM's role-based access control governs visibility of sensitive fields, including employee and vendor pay rates. Permissions are configured per role during implementation."* |
+| "Search for data using a variety of search criteria" | *"Spare EAM supports flexible record search across standard operators (equals, not-equals, less-than, greater-than, range, partial match, wildcard) on all core entity fields."* |
+
 ## Anti-pattern: copy-paste across rows
 
 **This is the most common failure mode and it is a blocker.** Example of what NOT to do (taken from a v0.4.0 run that shipped wrong):
@@ -18,7 +40,7 @@ Each row in the matrix asks about a different capability (asset disposal, CFDA t
 
 **Rule: every comment must quote or paraphrase the specific capability named in the requirement text.** If the requirement says "barcode technology for asset identification," the comment must mention barcode. If the requirement says "GIS integration for asset location," the comment must mention GIS. A generic "Spare EAM captures operational data" comment that could paste onto any row is wrong.
 
-**Rule: two rows with comments sharing more than roughly 70% of their text is a bug.** The `review-rfp-draft` skill flags this automatically. Before handoff, verify each row's comment addresses that row's specific requirement.
+**Rule: two rows with comments sharing more than 55% of their text is a bug.** The `review-rfp-draft` skill flags this automatically at `difflib.SequenceMatcher(...).ratio() > 0.55`. Before handoff, verify each row's comment addresses that row's specific requirement.
 
 ## How to use a template
 
@@ -56,14 +78,36 @@ Second, [tool specific to the capability, sourced].
 Third, [tool specific to the capability, sourced].
 ```
 
+### Integration / API answer template (default for integration asks)
+
+For "can you integrate with [X]," "do you support API connectivity for [Y]," "how does your system exchange data with the agency's ERP / GL / fare / scheduling system" requirements. The default framing is **capability + scope**, not a commitment to a specific partner product.
+
+```
+Spare exposes a public Open API covering [specific entities named in the sourced precedent: work orders, assets, parts, duties, requests, etc.]. [Optional specifics from the precedent: auth method, webhook support, rate limits, sync cadence.] Specific integration scope with the agency's [ERP / GL / fare / scheduling / GIS] system is confirmed during discovery and implementation.
+```
+
+**Do not name a specific third-party product (Microsoft Dynamics 365, Workday, SAP, NetSuite, PeopleSoft, Oracle, Trapeze, Ecolane, RouteMatch, myAvail, Cubic, Moneris, Geotab, etc.) in the comment unless that product is explicitly named in the current deal's `<agency>-deal-context.md` artifact.**
+
+Precedents in the corpus are from specific past agencies and often carry customer-specific integration names (e.g. MTD's Dynamics 365 implementation, Laramie's specific ERP). Those names must not be carried into a new draft for a different agency. The review skill flags any unsourced third-party name as a blocker.
+
+Good default when the deal context doesn't name a specific system:
+
+> *"Spare exposes a public Open API covering work orders, assets, parts inventory, vendors, and purchase orders. The API supports REST authentication, webhook events, and bulk export. Specific integration scope with the agency's ERP is confirmed during implementation."*
+
+Good when the deal context DOES name a system (e.g. MTD's deal-context.md lists "Microsoft Dynamics 365"):
+
+> *"Spare EAM exchanges work order and asset-lifecycle events with MTD's Microsoft Dynamics 365 via Spare's Open API, with specific field mappings confirmed during discovery."*
+
 ### ERP-partner template
 
 **This is the template that broke in v0.4.0.** It was stamped onto 16+ rows verbatim. Do not reuse the boilerplate; every instance must name the specific capability from the row.
 
-For `ability to X or integrate with ERP to fulfill this requirement` when the deal context indicates the agency has a separately-procured ERP.
+**Use this template ONLY when the agency's `<agency>-deal-context.md` explicitly names the ERP.** If the deal context doesn't name one, fall back to the Integration / API answer template above and say "the agency's ERP," not a guessed product name.
+
+For `ability to X or integrate with ERP to fulfill this requirement` when the deal context indicates the agency has a separately-procured, named ERP.
 
 ```
-Spare EAM [describes specifically what Spare does with X, from a sourced past RFP or docs page, not a generic "captures operational data" line]. For [the specific sub-function in this row that is ERP-owned: capitalization, depreciation, GL distribution, AR billing, etc.], [agency's ERP name] is the system of record, and Spare EAM [specifically how Spare integrates for this particular sub-function via Open API]. Specific integration scope will be confirmed during discovery with [agency's] IT team.
+Spare EAM [describes specifically what Spare does with X, from a sourced past RFP or docs page, not a generic "captures operational data" line]. For [the specific sub-function in this row that is ERP-owned: capitalization, depreciation, GL distribution, AR billing, etc.], [agency's ERP name, from deal-context only] is the system of record, and Spare EAM [specifically how Spare integrates for this particular sub-function via Open API]. Specific integration scope will be confirmed during discovery with [agency's] IT team.
 ```
 
 A row about barcode asset identification should not get the same ERP-partner answer as a row about leased asset tracking. Even if both technically have "or integrate with ERP" in the requirement, the specific capability varies, and the comment must vary accordingly.

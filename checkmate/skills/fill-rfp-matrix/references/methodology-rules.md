@@ -111,7 +111,7 @@ The shapes in `voice-templates.md` are patterns. Specific products, features, nu
 
 Every row's comment must specifically address that row's requirement text. Two rows in the same section with identical or near-identical comments is a bug, not a feature. If the requirement mentions barcode scanning, the comment mentions barcode. If the requirement mentions GIS integration, the comment mentions GIS. A comment that could paste onto any row is wrong.
 
-Concretely: `review-rfp-draft` runs a deterministic similarity check and flags rows whose comments share more than 70% of their text with a previous row. This class of error was the primary quality problem in v0.4.0 runs where the ERP-partner template was stamped verbatim onto 16+ unrelated rows. Do not let it happen again.
+Concretely: `review-rfp-draft` runs a deterministic similarity check and flags rows whose comments share more than 55% of their text with a previous row. The threshold was tightened from 0.70 in v1.3.2 after observing medium-repetition drift (two rows sharing 60-65% of text with only the last sentence varied) slipping past the old threshold. Expect occasional false positives on rows with legitimately overlapping vocabulary (e.g. two Open API rows); the review report is a triage, not a verdict, so the SE can acknowledge and move on.
 
 Before handoff, skim your own output: read any 3 adjacent filled rows aloud. If they sound the same, they are the same, rewrite them.
 
@@ -134,3 +134,25 @@ Corollary (enforced by `review-rfp-draft`): every citation in the Internal Reaso
 The `precedents.jsonl` corpus consumed by the MCP server lives in `$CLAUDE_PLUGIN_ROOT/data/cache/precedents.jsonl` alongside a `state.json` manifest that records the `modifiedTime` of every Drive file that contributed to it. At the start of every fill, `fill-rfp-matrix` does a metadata-only list of `Spare General` via the Drive connector, diffs against the manifest, and re-parses only files that have been added or changed. If nothing has changed, the cache is used as-is and drafting starts in seconds. There is no shared corpus, no scheduled rebuild, and no TTL; the cache is per-user and gitignored.
 
 At the end of the diff/rebuild, `fill-rfp-matrix` calls the `corpus_stats` tool and records total-rows, year-range, and source-file count as its grounding note. If the corpus returned is the bundled 10-row sample (which means the cache path wasn't populated), halt and report. Do not draft from the sample.
+
+## Rule 23: Don't splice the requirement text into the answer
+
+A failure mode distinct from copy-paste: the model takes the raw requirement phrase and inserts it as a noun into a generic sentence template, producing broken English and vendor boilerplate tone. Seen in live v1.3.1 runs:
+
+- *"Spare EAM addresses ability for system billing to integrate with ERP for AR."* (from requirement "Ability for system billing to integrate with ERP for AR")
+- *"Spare EAM's native functionality includes restrict access to employee & vendor pay rates."* (from requirement "Restrict access to employee & vendor pay rates")
+- *"Spare EAM is configured for search for data using a variety of search criteria."* (from requirement "Search for data using a variety of search criteria")
+
+**Rule: rephrase the requirement in plain English before answering.** Read the requirement, identify the specific capability it asks about, then write a sentence that answers "does Spare support this?" in natural English. Pull specifics from the cited precedent. Do not paste the requirement phrase into a sentence template. See the "Anti-pattern: splicing the requirement text into the answer" section in `voice-templates.md` for before-and-after examples.
+
+`review-rfp-draft` scans for this pattern by taking the first ~8 words of each requirement and checking whether they appear verbatim as a contiguous substring inside the drafted comment. When they do, the row is flagged for rewrite.
+
+## Rule 24: Don't name third-party systems that aren't in the deal context
+
+Precedents in the corpus are drawn from specific past agencies and carry customer-specific integration names (MTD's Microsoft Dynamics 365, Calgary's specific ERP, etc.). Those names must not be carried into drafts for different agencies unless the current agency's `<agency>-deal-context.md` artifact also names them.
+
+Default framing for integration and API questions: *"Spare exposes a public Open API covering [entities]. Specific integration scope with the agency's [ERP / GL / fare / scheduling] system is confirmed during implementation."* See the "Integration / API answer template" section in `voice-templates.md`.
+
+Better to be safe than to commit Spare to a specific integration we haven't confirmed. When in doubt, say "the agency's ERP" not the ERP's product name.
+
+`review-rfp-draft` maintains a list of common transit-adjacent and enterprise third-party system names (Microsoft Dynamics 365, Workday, SAP, NetSuite, PeopleSoft, Oracle, Trapeze, Ecolane, RouteMatch, myAvail, Cubic, Moneris, Geotab, and others) and cross-checks every filled comment against the loaded deal-context artifact. Any named system that appears in a comment but not in deal context is flagged as a blocker.

@@ -6,7 +6,7 @@ Fill and review RFP compliance matrices for Spare's Solutions Engineering team. 
 
 - **`extract-deal-context`**, runs once at the start of a new RFP workflow. Reads the agency's RFP PDF and produces a structured `<agency>-deal-context.md` artifact (agency identity, fleet snapshot, adjacent systems, timeline, scope restrictions, competitive signals, regulatory framework notes) that subsequent drafting sessions reference. The artifact contains facts only; no fit assessments or no-bid recommendations.
 - **`fill-rfp-matrix`**, core skill. First action is an in-session rebuild: walks the `Spare General` Shared Drive via the Drive connector, parses every past-RFP matrix, and writes a fresh `precedents.jsonl` to `~/.cache/checkmate/precedents.jsonl`. Then for every row: calls the bundled `search_precedents` tool to retrieve matching past-RFP precedents and drafts the Spare-voiced comment grounded in those precedents. Verdict is `I` (Need More Info) when no precedent meets the similarity threshold, never `N` from silence.
-- **`review-rfp-draft`**, companion QA skill. Validates that every cited precedent actually came from `search_precedents` for that row's requirement, catches cross-row comment repetition (>70% text similarity), flags legal/over-disclosure risks, and produces a triage report.
+- **`review-rfp-draft`**, companion QA skill. Validates that every cited precedent actually came from `search_precedents` for that row's requirement, catches cross-row comment repetition (>55% text similarity), flags legal/over-disclosure risks, and produces a triage report.
 - **`mcp-servers/precedent-search/`**, a pure-stdlib Python MCP server bundled with the plugin. Loads the local session corpus and exposes `search_precedents` and `corpus_stats` tools. TF-IDF + cosine similarity, zero third-party dependencies, hot-reloads on mtime change.
 
 ## Install and set up
@@ -58,7 +58,7 @@ The full methodology lives in `skills/fill-rfp-matrix/references/methodology-rul
 - Every row's first action is a `search_precedents` tool call.
 - Every row cites a returned precedent; hallucinated citations are blocked at review.
 - Every customer-facing answer leads with `Spare` or `Spare's`. No em dashes.
-- No copy-paste across rows; the review skill flags >70% similar comments.
+- No copy-paste across rows; the review skill flags >55% similar comments.
 - Honest about gaps only when the gap is sourced from a past RFP or the docs. Never from speculation.
 
 ## Known gaps disclosed consistently

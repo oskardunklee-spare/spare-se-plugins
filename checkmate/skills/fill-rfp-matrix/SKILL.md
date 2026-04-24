@@ -336,7 +336,7 @@ Structural only, see `references/voice-templates.md`. Specific products/numbers 
 
 **The fill is not complete until `review-rfp-draft` has run on the output file and returned a clean triage report.** This is not a separate optional step; it is part of the drafting workflow (Rule 20).
 
-When you finish the last row, immediately invoke `review-rfp-draft` on the filled file. Read the triage report. If there are blockers (especially repetition blockers from Rule 19, rows whose comments share >70% of text with a previous row), rewrite those specific rows and re-run review until the report is clean. Only then hand the file back to the user.
+When you finish the last row, immediately invoke `review-rfp-draft` on the filled file. Read the triage report. If there are blockers (especially repetition blockers from Rule 19, rows whose comments share >55% of text with a previous row), rewrite those specific rows and re-run review until the report is clean. Only then hand the file back to the user.
 
 Do not tell the user "here is your filled matrix, please review" without having run the review skill yourself.
 
