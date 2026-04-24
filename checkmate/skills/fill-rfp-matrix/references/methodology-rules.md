@@ -176,3 +176,34 @@ The precedent corpus is the primary source, but precedents can go stale as the p
 When none of the triggers fire, the precedent is the source of truth and drafting proceeds from it alone. This keeps fills fast on rows where precedent coverage is strong and recent, while catching the staleness and drift failure modes that would otherwise let outdated answers through.
 
 `review-rfp-draft` validates that when a trigger fired, the Internal Reasoning column either (a) cites a Spare docs URL / Glean result / Notion URL in addition to the precedent, or (b) marks the verdict as `I` (Need More Info). A triggered row with only a precedent citation is flagged as a blocker.
+
+## Rule 26: Precedent comment text is a source, not a verbatim copy
+
+The precedent corpus indexes answered rows from past Spare RFPs. Not every indexed row was a polished final submission; some are draft / working matrices where SEs left internal notes, open questions, or product-team shorthand in the comment column (e.g. `"TBD - Custom Field and Workflow with notification? Usse asset type as SW"`, `"Not likely to have and requires decision on pursuit"`, `"Might not want to do this globally for security"`). Those notes got indexed as precedents and, without this rule, leak into customer-facing drafts.
+
+**Rule: read the precedent comment for its factual content, then rephrase in Spare's voice using a template from `voice-templates.md`. Do not paste precedent comment text directly into a draft.** Markers that indicate a precedent comment is a scratch note rather than a polished answer:
+
+- Literal `TBD`, `TBD:`, `TBD -`
+- Question marks inside the answer body
+- Hedging vocabulary: `might have`, `might not want`, `not likely to have`, `requires decision`, `need custom`, `could use`, `may need`
+- Typos or engineering shorthand: misspelled words, all-caps mid-sentence abbreviations, fragmentary noun phrases like "Custom Field"
+- Meta-commentary openings: `Specifically,` followed by a scratch-note clause
+
+When a precedent comment contains any of these, treat it as a weak signal. Options: reach for docs corroboration per Rule 25, pick a different returned precedent, or mark the row `I` (Need More Info). `review-rfp-draft` flags any draft containing these markers as a blocker.
+
+See `voice-templates.md` "Anti-pattern: lifting precedent comment text verbatim" for examples.
+
+## Rule 27: Opener grammar must parse
+
+Rule 4 requires every customer-facing comment to open with `Spare` or `Spare's`. Rule 27 adds: the opener must produce a grammatical English sentence. If forcing "Spare's" creates broken construction, rewrite.
+
+Banned opener constructions (observed in v1.3.1 runs):
+
+- `Spare's within [Product], ...` — possessive + preposition
+- `Spare's regarding X, ...`
+- `Spare's in terms of Y, ...`
+- `Spare's for the purpose of Z, ...`
+
+Any "Spare's" immediately followed by a preposition is broken. Rewrite as `Spare [Product] supports X` or `Within Spare [Product], X happens` (the latter opens with "Within", acceptable because Spare is still the first named subject).
+
+`review-rfp-draft` detects ungrammatical openers by regex on the first clause and flags them as blockers.

@@ -2,6 +2,45 @@
 
 **Read this first.** These templates are skeletons, not sentences. Every filled-in row must be tailored to the specific requirement text of that row. If two rows in the same section end up with identical or near-identical comments, you did it wrong, the requirement text differs between rows, so the comment should too.
 
+## Anti-pattern: lifting precedent comment text verbatim
+
+The precedent corpus contains answered rows from past Spare RFPs. Those rows vary in quality: some are polished final submissions, others are draft / working matrices where SEs left behind scratch notes, open questions, and product-team shorthand in the comment field. Examples from live v1.3.1 runs where precedent-note text leaked into customer-facing drafts:
+
+| Leaked draft | What got carried forward |
+|---|---|
+| *"Specifically, TBD - Custom Field and Workflow with notification? Usse asset type as SW."* | Literal "TBD", open question mark, typo ("Usse"), engineering shorthand ("SW") |
+| *"Specifically, custom Field, may need custom reporting. Could use asset types as well for filtering."* | Internal scratch musing |
+| *"Specifically, full ERP integration via modules on purchasing. Not likely to have and requires decision on pursuit."* | Product-team language ("Not likely to have", "requires decision") |
+| *"Specifically, no capability to expose cell phone number. Might not want to do this globally for security."* | SE's private aside, not a customer answer |
+
+An agency reading these will see TBDs, typos, engineering jargon, hedging, and unresolved questions, and score the response as unprofessional or unprepared.
+
+**Rule: the precedent comment is a source, not a copy.** Read it, extract the factual content about the capability, and rephrase in Spare's voice using the templates in this file. Do not paste precedent comment text directly into drafts. Do not copy forward any of these internal-note markers:
+
+- Literal `TBD`, `TBD:`, `TBD -`
+- Question marks inside the answer (except where the requirement literally asks for clarification)
+- Hedging from notes: `might have complexity`, `might not want`, `not likely to have`, `requires decision`, `need custom`, `could use`, `may need`
+- Obvious typos or engineering shorthand that wouldn't appear in a published doc (`Usse`, all-caps abbreviations mid-sentence, fragmentary "Custom Field" as a noun phrase)
+- Meta-commentary: `Specifically,` followed by a scratch-note clause; `This would be addressed as a configuration or custom enhancement during implementation` as a vapid fallback (use only when the precedent explicitly supports it)
+
+If the precedent comment visibly reads as a draft note rather than a polished answer (contains any of the markers above, has typos, or reads as a private aside), treat it as a weak signal. Either corroborate via docs per Rule 25, pick a different precedent, or mark the row `I` (Need More Info).
+
+## Anti-pattern: forcing a broken 'Spare' opener
+
+Every customer-facing comment opens with `Spare` or `Spare's`. But if the natural continuation of that opener produces broken English, rewrite the sentence; don't force it.
+
+Example from a live v1.3.1 run:
+
+Bad: *"Spare's within Spare EAM, alerting user if item needing repair is within warranty date is covered with one noted sub-feature."*
+
+The draft opened with "Spare's" but the continuation "within Spare EAM" reads as a possessive followed by a preposition, which isn't grammatical. Rewrite:
+
+Better: *"Spare EAM supports warranty-aware work-order alerts when an asset comes in for repair. [Specifics from the cited precedent.]"*
+
+Better: *"Within Spare EAM, warranty-date alerts fire when an asset comes in for repair. [Specifics.]"*  — opens with "Within Spare EAM" (not "Spare's"). The review skill treats *"Within Spare EAM..."* as an acceptable opener because Spare is still the first named subject.
+
+Rule: if the opener doesn't parse as a grammatical English sentence, the row is a blocker. Rewrite. Banned constructions include "Spare's within Spare EAM, ...", "Spare's regarding X, ...", "Spare's in terms of Y, ..." — any "Spare's" followed directly by a preposition.
+
 ## Anti-pattern: splicing the requirement text into the answer
 
 A grammar-and-tone failure mode where the model lifts the raw requirement phrase and inserts it as a noun into a generic sentence template. Examples caught in live runs:
@@ -161,6 +200,9 @@ Avoid in customer-facing comments:
 - *"streamlined"* as a pure adjective (OK as a verb with an object)
 - *"powerful"* as an adjective for the platform
 - **"Spare EAM supports this requirement as part of its standard feature set. Configuration and specific workflow details will be confirmed during system design and discovery."** This exact vapid sentence shipped in a v0.4.0 run as 50+ row answers. It is meaningless. If you find yourself drafting it, stop and re-read the requirement.
+- Meaningless hedge phrases from v1.3.1 runs: *"with the caveat noted"*, *"with one noted sub-feature"*, *"with one scoped sub-feature flagged"*, *"sub-feature flagged"*, *"is covered with the caveat noted"*. These phrases are Claude-invented filler that reads as vague and defensive. If the precedent genuinely indicates a partial or noted capability, say so in specific terms from the precedent (e.g. *"Spare EAM supports X; Y requires configuration at implementation"*) rather than wrapping it in hedge vocabulary.
+- *"This is tracked on Spare's product roadmap"* as a fallback closer. Only include roadmap language when a sourced precedent or docs page explicitly confirms the feature is on the roadmap. Otherwise it's a guess that can become a contractual obligation.
+- *"This would be addressed as a configuration or custom enhancement during implementation"* as a universal vapid fallback. Use only when the precedent or docs explicitly confirm it.
 
 ## Product-name catalog
 
