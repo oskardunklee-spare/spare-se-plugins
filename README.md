@@ -12,7 +12,7 @@ Simulation helpers, and more.
 
 | Plugin | Version | What it does |
 |---|---|---|
-| [checkmate](./checkmate) | 1.3.7 | Draft and QA RFP compliance matrices in Spare's voice. Bundled pure-stdlib MCP server (`checkmate-precedents`) performs deterministic per-row TF-IDF search over Spare's past-RFP corpus. Persistent per-user local cache with change-detection against the `Spare General` Google Shared Drive: first fill walks Drive once (~20 min), every fill after starts in seconds unless Drive content has changed. Pre-flight connector check and automatic row-height fixes on filled cells. Every row cites a returned precedent; hallucinated citations are blocked at review. Forbids no-bid and scope-judgment outputs. Replaces Responsive for RFP responses. |
+| [checkmate](./checkmate) | 1.3.8 | Draft and QA RFP compliance matrices in Spare's voice. Bundled pure-stdlib MCP server (`checkmate-precedents`) performs deterministic per-row TF-IDF search over Spare's past-RFP corpus. Persistent per-user local cache with change-detection against the `Spare General` Google Shared Drive: first fill walks Drive once (~20 min), every fill after starts in seconds unless Drive content has changed. Pre-flight connector check and automatic row-height fixes on filled cells. Every row cites a returned precedent; hallucinated citations are blocked at review. Forbids no-bid and scope-judgment outputs. Replaces Responsive for RFP responses. |
 
 ## Using these plugins
 

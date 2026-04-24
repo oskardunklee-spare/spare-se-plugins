@@ -207,3 +207,18 @@ Banned opener constructions (observed in v1.3.1 runs):
 Any "Spare's" immediately followed by a preposition is broken. Rewrite as `Spare [Product] supports X` or `Within Spare [Product], X happens` (the latter opens with "Within", acceptable because Spare is still the first named subject).
 
 `review-rfp-draft` detects ungrammatical openers by regex on the first clause and flags them as blockers.
+
+## Rule 28: No quoted-requirement or colon-intro templates
+
+A specific variant of requirement-splicing (Rule 23) worth calling out as its own rule because it's been showing up in drafts. Claude wraps the requirement phrase in quotation marks, writes "in Spare EAM:" after it, and then gives the answer as the clause after the colon. Example from a live v1.3.1 run:
+
+*Spare addresses "track non-capitalized items (i.e., items of value below the depreciation threshold amount) or ability to integrate with ERP to fulfill this requirement" in Spare EAM: supports categorizing assets with configurable attributes...*
+
+Both halves of this pattern are banned:
+
+- **Quoted-requirement opener.** `Spare [addresses | supports | handles | covers | provides] "..."` where the quoted content is the requirement phrase (single, double, or typographic quotes). Do not wrap the requirement in quotes.
+- **Colon-intro construction.** `Spare [restated requirement] in Spare EAM: [actual answer]`. The colon is a signal that the first clause is filler and the real answer starts after it. Just write the answer.
+
+Rule: answer the question in Spare's voice. No quoted requirement preamble. No colon introducing the "real" answer. One integrated response.
+
+`review-rfp-draft` detects both patterns via regex and flags them as blockers.

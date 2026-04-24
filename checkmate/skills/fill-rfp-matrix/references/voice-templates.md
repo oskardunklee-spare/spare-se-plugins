@@ -2,6 +2,44 @@
 
 **Read this first.** These templates are skeletons, not sentences. Every filled-in row must be tailored to the specific requirement text of that row. If two rows in the same section end up with identical or near-identical comments, you did it wrong, the requirement text differs between rows, so the comment should too.
 
+## Spare's voice: what it sounds like (read this before drafting)
+
+Answers must read like Spare wrote them. Spare does not sound like a generic enterprise-software vendor. If a draft reads like it could've come from any transit vendor's sales pitch, rewrite.
+
+### Five tone principles
+
+1. **Active voice, concrete verbs.** Spare *does* things; things don't *get supported by configurable attributes*. Use "tags," "sends," "stores," "syncs," "tracks" — not "supports categorization of," "is reflected in," "exchanges data with." If a sentence can be rewritten with a direct verb, rewrite it.
+2. **Short sentences. One idea per sentence.** Spare's answers don't stack five dependent clauses. If a sentence has three commas and a conjunction, split it.
+3. **No hedge filler.** Cut `typically`, `fully documented`, `comprehensively`, `robust`, `seamlessly`, `leveraging`. These are the words an RFP evaluator has seen from every vendor and learned to tune out.
+4. **Plain language for technical concepts.** *"The ERP owns capitalization decisions and Spare reflects them"* beats *"capitalization threshold logic is typically owned in the ERP and passed to Spare EAM via the Open API integration."* Same information, half the words, three times the clarity.
+5. **Confident, not salesy.** State what Spare does. Don't puff it up with adjectives. "Spare EAM has an Open API" is a full and sufficient sentence; "Spare EAM leverages a robust, fully documented Open API to seamlessly enable integration" is the enterprise-vendor equivalent and reads as empty.
+
+### Before / after
+
+The left column is what generic-vendor Claude produces. The right column is what Spare would actually submit. Read these and absorb the difference.
+
+| Generic vendor voice (bad) | Spare voice (good) |
+|---|---|
+| *"Spare EAM supports categorizing assets with configurable attributes that can flag capitalization status. Because Microsoft Dynamics 365 is MTD's financial system of record, the capitalization threshold logic is typically owned in the ERP and passed to Spare EAM via the Open API integration."* | *"Spare EAM tags each asset with its capitalization status via a configurable attribute. MTD's Dynamics 365 owns the capitalization threshold logic; Spare receives the flag via the Open API. We'll confirm field mappings at implementation."* |
+| *"Spare EAM supports integration with ERP systems via the fully documented Open API. The specific integration with Microsoft Dynamics 365 will be scoped during discovery to confirm data flows for asset master, purchase orders, receipts, and inventory transactions."* | *"Spare's Open API covers asset master, purchase orders, receipts, and inventory. We'll confirm the specific Dynamics 365 mappings with MTD's IT team at implementation."* |
+| *"The platform exposes a public Open API covering core entities. Spare EAM's native functionality includes restrict access to employee & vendor pay rates in the system."* | *"Spare EAM has a public Open API covering every core entity. Role-based access control hides sensitive fields like employee and vendor pay rates; permissions are configured per role at setup."* |
+| *"Spare supports flexible record search across standard operators and partial-match scenarios, with role-based access control enforced across search results for compliance with data access policies."* | *"Spare EAM's search supports equals, not-equals, ranges, partial match, and wildcards on every core entity. Search results respect the user's role permissions."* |
+| *"This capability will be addressed as a configuration or custom enhancement during implementation, subject to discovery and scoping with the agency's technical stakeholders."* | *"We'll scope this with the agency at implementation."* (Or, if the capability is already in the product, say what Spare does; skip the discovery language entirely.) |
+
+### Banned vendor-register phrases (added to the Never-use list below)
+
+Any of these showing up in a draft is a rewrite trigger:
+
+- `fully documented` — just say "public" or "documented," once, and stop
+- `typically owned` / `typically maintained` / `typically handled by` — "the ERP owns X" is cleaner
+- `will be scoped during discovery to confirm` (as a trailing clause covering every detail) — one "we'll confirm at implementation" per row is plenty
+- `leveraging` / `leveraged` in any form
+- `is reflected in` / `is passed to` / `is exchanged with` — use active verbs: "flows to," "sends," "syncs"
+- `comprehensively` / `robustly` / `seamlessly`
+- `the platform exposes` (in more than one row; vary the subject)
+- `Because X is Y, ...` as a sentence opener for integration explanations — the causal framing reads textbook-y
+- Strings of enterprise nouns: *"asset master, purchase orders, receipts, and inventory transactions for procurement and payables"* — list when necessary but don't pile on
+
 ## Anti-pattern: lifting precedent comment text verbatim
 
 The precedent corpus contains answered rows from past Spare RFPs. Those rows vary in quality: some are polished final submissions, others are draft / working matrices where SEs left behind scratch notes, open questions, and product-team shorthand in the comment field. Examples from live v1.3.1 runs where precedent-note text leaked into customer-facing drafts:
@@ -41,6 +79,26 @@ Better: *"Within Spare EAM, warranty-date alerts fire when an asset comes in for
 
 Rule: if the opener doesn't parse as a grammatical English sentence, the row is a blocker. Rewrite. Banned constructions include "Spare's within Spare EAM, ...", "Spare's regarding X, ...", "Spare's in terms of Y, ..." — any "Spare's" followed directly by a preposition.
 
+## Anti-pattern: quoted-requirement + colon-intro template
+
+A subset of the requirement-splicing failure that produces its own distinct ugly output. Claude wraps the requirement in quotation marks, appends "in Spare EAM:", then gives the actual answer. Example from a live v1.3.1 run:
+
+Bad: *Spare addresses "track non-capitalized items (i.e., items of value below the depreciation threshold amount) or ability to integrate with ERP to fulfill this requirement" in Spare EAM: supports categorizing assets with configurable attributes that can flag capitalization status.*
+
+The quotes + colon construction reads as *"I pasted your question back at you, here is my answer after the colon."* An evaluator registers it as lazy and formulaic.
+
+**Banned constructions:**
+
+- `Spare addresses "..."` / `Spare supports "..."` / `Spare handles "..."` / `Spare covers "..."` — ANY "Spare [verb]" opener followed by a quoted requirement phrase, in single or double quotes (ASCII `"` / `'` or typographic `" " ' '`).
+- `Spare [verb] [requirement restated] in Spare EAM: ...` — the colon-intro construction, even without quotes. The colon signals "now here is the actual answer," which is itself a sign that the first clause is filler.
+
+**Rewrite approach:** just answer the question in Spare's voice. No quotes, no colon.
+
+| Bad draft | Good draft |
+|---|---|
+| *Spare addresses "track non-capitalized items (i.e., items of value below the depreciation threshold amount) or ability to integrate with ERP to fulfill this requirement" in Spare EAM: supports categorizing assets with configurable attributes that can flag capitalization status.* | *Spare EAM categorizes assets with configurable attributes that can flag capitalization status against the agency's threshold. Capitalization decisions are typically owned in the agency's ERP and passed to Spare EAM via the Open API integration; specific scope is confirmed during implementation.* |
+| *Spare addresses "have multiple account distributions (including multiple funds) or ability to integrate with ERP to fulfill this requirement" in Spare EAM: supports cost allocation across multiple accounts when pushed from the ERP.* | *Spare EAM supports cost allocation across multiple accounts when the distribution is provided by the agency's ERP. For multi-fund capital assets, the account distribution is maintained in the ERP and reflected in Spare EAM via the Open API integration.* |
+
 ## Anti-pattern: splicing the requirement text into the answer
 
 A grammar-and-tone failure mode where the model lifts the raw requirement phrase and inserts it as a noun into a generic sentence template. Examples caught in live runs:
@@ -77,7 +135,9 @@ Fifteen more identical rows.
 
 Each row in the matrix asks about a different capability (asset disposal, CFDA tracking, barcode scanning, GIS integration, document attachments, leased assets). The comments must address each specific capability using sourced language from a past RFP or Spare docs. An evaluator reading 16 identical comments marks the submission as vendor boilerplate and scores it low.
 
-**Rule: every comment must quote or paraphrase the specific capability named in the requirement text.** If the requirement says "barcode technology for asset identification," the comment must mention barcode. If the requirement says "GIS integration for asset location," the comment must mention GIS. A generic "Spare EAM captures operational data" comment that could paste onto any row is wrong.
+**Rule: every comment must explicitly address the specific capability named in the requirement text, in the comment's own voice.** If the requirement says "barcode technology for asset identification," the comment must mention barcode. If the requirement says "GIS integration for asset location," the comment must mention GIS. A generic "Spare EAM captures operational data" comment that could paste onto any row is wrong.
+
+**"Address" means respond to in your own words.** It does NOT mean wrap the requirement in quotation marks or restate it as a preamble before a colon. See the "Anti-pattern: quoted-requirement + colon-intro template" section above.
 
 **Rule: two rows with comments sharing more than 55% of their text is a bug.** The `review-rfp-draft` skill flags this automatically at `difflib.SequenceMatcher(...).ratio() > 0.55`. Before handoff, verify each row's comment addresses that row's specific requirement.
 
@@ -203,6 +263,7 @@ Avoid in customer-facing comments:
 - Meaningless hedge phrases from v1.3.1 runs: *"with the caveat noted"*, *"with one noted sub-feature"*, *"with one scoped sub-feature flagged"*, *"sub-feature flagged"*, *"is covered with the caveat noted"*. These phrases are Claude-invented filler that reads as vague and defensive. If the precedent genuinely indicates a partial or noted capability, say so in specific terms from the precedent (e.g. *"Spare EAM supports X; Y requires configuration at implementation"*) rather than wrapping it in hedge vocabulary.
 - *"This is tracked on Spare's product roadmap"* as a fallback closer. Only include roadmap language when a sourced precedent or docs page explicitly confirms the feature is on the roadmap. Otherwise it's a guess that can become a contractual obligation.
 - *"This would be addressed as a configuration or custom enhancement during implementation"* as a universal vapid fallback. Use only when the precedent or docs explicitly confirm it.
+- Vendor-register phrases that signal generic enterprise-software voice (added v1.3.8): *"fully documented"*, *"typically owned"*, *"typically maintained"*, *"typically handled by"*, *"leveraging"*, *"leveraged"*, *"is reflected in"*, *"is passed to"*, *"is exchanged with"*, *"comprehensively"*, *"robustly"*, *"seamlessly"*, *"the platform exposes"* (when repeated across rows). These show up in the "generic vendor voice" column of the before/after table above; the Spare-voice rewrites use concrete verbs instead.
 
 ## Product-name catalog
 
