@@ -46,6 +46,19 @@ If after executing the mandatory search sequence (below) you genuinely cannot fi
 
 Before opening the matrix, before detecting schema, before anything else. The corpus is cached on disk in the plugin workspace and refreshed incrementally from Drive. Only files that actually changed since the last fill are re-parsed; unchanged Drive = fast path.
 
+### Status reporting convention
+
+Fills take minutes to tens of minutes depending on cache state and matrix size. A silent run is a bad UX; the user is left guessing whether something crashed. **Post short user-facing status messages at every phase transition.** Rules:
+
+- One status line per ~30 seconds of work, more for long phases (the Drive walk, the drafting loop).
+- Use simple plain-prose updates. No emojis unless the user has used them first. No elaborate progress bars.
+- Prefix milestones with `✓` after completion so the user can scan the thread and see what's done.
+- For counting phases (file walk, row drafting), report progress every N items: every 5 matrices during a cold-start walk, every 25 rows during drafting.
+- Name the current phase so the user knows where in the pipeline things are: "Pre-flight," "Drive diff," "Parsing," "Drafting," "Review," "Saving."
+- Mention concrete estimated-time-remaining when you have enough signal (e.g., after the first file during a cold walk, extrapolate).
+
+Every step below has a **Post to user** callout showing what to say at that transition. Adapt the wording to fit the actual numbers; the intent is consistent communication, not verbatim templating.
+
 ### Spare General is a Google Shared Drive
 
 `Spare General` is a Shared Drive (Team Drive), not a My Drive folder. Its root ID starts with `0A`. Every Drive connector call that searches or lists content inside it MUST pass Shared Drive flags or Google returns zero results silently.
@@ -78,18 +91,26 @@ Execute in order. Do not skip. Do not walk Drive by any mechanism other than the
 
 #### 1. Pre-flight connector check
 
+**Post to user:** *"Starting Checkmate. Checking required connectors..."*
+
 Verify the required connectors are available before doing anything Drive-shaped:
 
-- **Google Drive connector** (required). Call a lightweight Drive tool (e.g., `list_recent_files` with a small pageSize, or `get_file_metadata` on the Shared Drive root) to confirm it responds. If it doesn't, stop and tell the user: *"Checkmate needs the Google Drive connector to walk Spare General. Install or reconnect it in Cowork Settings → Connectors and try again."*
-- **Spare documentation MCP** (recommended). If unavailable, warn but continue; per-row docs corroboration degrades to precedent-only sourcing.
+- **Google Drive connector** (required). Call a lightweight Drive tool (e.g., `list_recent_files` with a small pageSize, or `get_file_metadata` on the Shared Drive root) to confirm it responds. If it doesn't, stop and tell the user: *"Checkmate needs the Google Drive connector to walk Spare General. Install or reconnect it in Cowork Settings → Connectors and try again."* After success, **post to user:** *"✓ Google Drive connector reachable."*
+- **Spare documentation MCP** (recommended). If unavailable, warn but continue; per-row docs corroboration degrades to precedent-only sourcing. **Post to user:** *"✓ Spare docs MCP reachable."* on success or *"⚠ Spare docs MCP not available; per-row corroboration will be skipped."* on failure (using `⚠` here is fine; it's a warning character, not an emoji).
 
 #### 2. Install openpyxl in the sandbox
 
+Check first if it's importable; skip the install and the status message if so, to avoid noise.
+
 ```bash
-pip install openpyxl --break-system-packages 2>&1 | tail -1
+python3 -c "import openpyxl" 2>/dev/null || {
+  # Only post the install message if we actually need to install.
+  echo "installing openpyxl..."
+  pip install openpyxl --break-system-packages 2>&1 | tail -1
+}
 ```
 
-Only strictly required if Step 5 will run (i.e., files need re-parsing). Run it eagerly anyway; it's cheap and the downstream script will assume it's there.
+**Post to user** only when installing: *"Installing openpyxl (one-time per session)..."* When already present, stay silent.
 
 #### 3. Decide cache status: warm, pre-seeded, or cold
 
@@ -98,19 +119,26 @@ CACHE="$CLAUDE_PLUGIN_ROOT/data/cache"
 mkdir -p "$CACHE"
 ```
 
-Four branches:
+Four branches — **post to user** the matching status message once the branch is decided:
 
-- **Warm start** — `$CACHE/precedents.jsonl` parses, `$CACHE/state.json` is valid JSON, AND `state.json.parser_version` matches the current parser version (`1.3.6`). This is the normal case after the first fill. Proceed to Step 4 (Drive diff).
+- **Warm start** — `$CACHE/precedents.jsonl` parses, `$CACHE/state.json` is valid JSON, AND `state.json.parser_version` matches the current parser version (`1.3.6`). This is the normal case after the first fill.
+  - **Post:** *"✓ Corpus cache is up to date (N rows from M files, built <last_walk_at>). Checking Drive for changes..."*
+  - Proceed to Step 4 (Drive diff).
 
-- **Stale-parser cold start** — `$CACHE/precedents.jsonl` exists but `state.json.parser_version` is older than the current parser version, or absent. The corpus was built with a superseded `parse_matrix.py` and may include rows that the current parser would have filtered (internal columns, scratch-note content, etc.). **Force a cold start to rebuild cleanly.** Post: *"Corpus was built with parser version X; current version is 1.3.6. Rebuilding the corpus from Spare General to apply new filters. Expect 15-25 minutes."* Then skip to Step 5 (full walk).
+- **Stale-parser cold start** — `$CACHE/precedents.jsonl` exists but `state.json.parser_version` is older than the current parser version, or absent. The corpus was built with a superseded `parse_matrix.py` and may include rows that the current parser would have filtered (internal columns, scratch-note content, etc.).
+  - **Post:** *"Corpus was built with parser version <old> (current is 1.3.6). Rebuilding from Spare General to apply new filters. Expect 15-25 minutes."*
+  - Force a cold start; skip to Step 5 (full walk).
 
-- **Pre-seeded warm start** — `$CACHE/precedents.jsonl` parses with more than the 10-row sample, but `$CACHE/state.json` is missing or malformed, AND the user confirms the JSONL was recently built with a current parser. The corpus was hand-placed (e.g. seeded after a prior session's walk, or restored from backup) and there is no manifest to diff against. **Do not do a full walk.** Post: *"Found existing corpus (N rows from M files). Bootstrapping state manifest from current Drive state; ready in ~1-2 minutes."* Then:
+- **Pre-seeded warm start** — `$CACHE/precedents.jsonl` parses with more than the 10-row sample, but `$CACHE/state.json` is missing or malformed. The corpus was hand-placed (e.g. seeded after a prior session's walk, or restored from backup).
+  - **Post:** *"Found existing corpus (N rows from M files). Bootstrapping state manifest from current Drive state; ready in ~1-2 minutes."*
   - Run Step 4's **resolve-the-root** and **list-Drive-metadata** sub-steps only (no downloads, no parsing).
   - Write `state.json` from the listed files (including `parser_version`) as though this were an up-to-date walk.
   - Skip Steps 5 and 6 entirely. Trust the existing JSONL as-is.
   - Proceed to Step 7.
 
-- **Cold start** — `$CACHE/precedents.jsonl` is missing, empty, or fails to parse. Post: *"No cached corpus found. Walking Spare General now. Expect 15-25 minutes on first run; every fill after this will be seconds unless Drive content changes."* Skip Step 4 and go straight to Step 5 (full walk).
+- **Cold start** — `$CACHE/precedents.jsonl` is missing, empty, or fails to parse.
+  - **Post:** *"No cached corpus found. Walking Spare General now. Expect 15-25 minutes on first run; every fill after this will be seconds unless Drive content changes."*
+  - Skip Step 4 and go straight to Step 5 (full walk).
 
 #### 4. Diff Drive against the cache (fast path)
 
@@ -120,7 +148,11 @@ Four branches:
 - **Backup (by name):** if the hardcoded ID fails, search by name: `q: "name = 'Spare General' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"` with `corpora: "allDrives"`, `supportsAllDrives: true`, `includeItemsFromAllDrives: true`.
 - **If both fail:** stop. Report what was tried. Do not draft from the bundled sample.
 
-**List metadata only** (no downloads) for every `.xlsx`, `.csv`, or Google Sheet under `$DRIVE_ROOT_ID` modified in the past 18 months. On every list call pass `supportsAllDrives: true`, `includeItemsFromAllDrives: true`, `corpora: "drive"`, `driveId: $DRIVE_ROOT_ID`. Return just the `{id, name, mimeType, modifiedTime, webViewLink}` tuples. This is a metadata pass, not a download pass — should take 1-3 minutes even on a large drive.
+**Post to user:** *"Listing files in Spare General (metadata only). This takes 30 seconds to 2 minutes."*
+
+**List metadata only** (no downloads) for every `.xlsx`, `.csv`, or Google Sheet under `$DRIVE_ROOT_ID` modified in the past 18 months. On every list call pass `supportsAllDrives: true`, `includeItemsFromAllDrives: true`, `corpora: "drive"`, `driveId: $DRIVE_ROOT_ID`. Return just the `{id, name, mimeType, modifiedTime, webViewLink}` tuples.
+
+**Post to user:** *"Found N matrices modified in the past 18 months."*
 
 **Compare against `state.json`:**
 
@@ -130,8 +162,12 @@ Four branches:
 
 **Branch:**
 
-- If `added`, `changed`, and `removed` are all empty: **nothing to do.** Post: *"Corpus is up to date (N rows from M files, last walked <date>). Loading cache."* Skip to Step 6.
-- Otherwise: post a status message naming the deltas (e.g. *"3 files changed, 1 added since last fill. Re-parsing 4 files, ~2 minutes."*) and continue to Step 5 with a **targeted rebuild** over just `added ∪ changed`. Remove any rows in `precedents.jsonl` whose `source_id` is in `changed ∪ removed`; keep the rest.
+- If `added`, `changed`, and `removed` are all empty: **nothing to do.**
+  - **Post:** *"✓ No changes since last walk. Using cached corpus. Ready to draft."*
+  - Skip to Step 7 (corpus_stats confirmation).
+- Otherwise:
+  - **Post:** name the deltas concretely, e.g. *"3 files changed, 1 added, 0 removed since last fill. Re-parsing 4 files (~2 minutes)."*
+  - Continue to Step 5 with a **targeted rebuild** over just `added ∪ changed`. Remove any rows in `precedents.jsonl` whose `source_id` is in `changed ∪ removed`; keep the rest.
 
 #### 5. Download and parse the target files
 
@@ -143,6 +179,10 @@ rm -rf "$SCRATCH" && mkdir -p "$SCRATCH/downloads"
 ```
 
 If this is a **cold start**, the target set is every xlsx/csv/Sheet under `$DRIVE_ROOT_ID` modified in the past 18 months (walk it now with BFS, Shared Drive flags as in Step 4). If this is a **targeted rebuild**, the target set is just `added ∪ changed`.
+
+**Post to user at the start of this step:** the total file count being parsed, e.g. *"Parsing 14 matrices from Spare General."* For cold starts, add an expectation: *"This is the first fill, so all 14 are new. Expect ~20 minutes."* For targeted rebuilds with <5 files, omit the time estimate.
+
+**Post to user every 5 files (or every 5 minutes of wall clock during a cold start, whichever comes first):** the running count, e.g. *"Progress: 5 of 14 matrices parsed. Current: <filename>."* This keeps the user informed during long walks without being chatty.
 
 For each target file:
 
@@ -189,6 +229,8 @@ print(f'merged: {len(keep)} total rows in corpus')
 
 (Substitute the real `source_id` field if the parser emits it under a different key; current emit is `id` formatted as `<source_id>:<sheet>:<row>`, so split on the first `:`.)
 
+**Post to user after merge completes:** *"✓ Corpus updated: N total rows across M files. Written to local cache."*
+
 #### 6. Rewrite state.json
 
 ```bash
@@ -211,9 +253,11 @@ print('state.json updated')
 
 #### 7. Confirm the corpus is loaded
 
-Call the `corpus_stats` tool on the `checkmate-precedents` MCP server. Report its output as the grounding note: total rows, unique source files, agencies, year range. The MCP server hot-reloads on mtime change.
+Call the `corpus_stats` tool on the `checkmate-precedents` MCP server. The MCP server hot-reloads on mtime change.
 
 If `corpus_stats` returns only the 10-row bundled sample (unique_source_files == 1 AND the sole file name contains "[SAMPLE]"), the cache path wasn't populated. Stop and tell the user. Do not draft from the sample.
+
+**Post to user:** the grounding note from `corpus_stats` formatted as a single readable line, e.g. *"Grounding note: 918 rows across 10 source files from 4 agencies (Laramie, Calgary, CBRM, SAMTD), 2025-2026. Ready to draft."*
 
 Only after `corpus_stats` confirms a real, populated corpus do you begin drafting rows.
 
@@ -338,6 +382,21 @@ Structural only, see `references/voice-templates.md`. Specific products/numbers 
 - **Medium (yellow)**, older or single-source match, or wording needs SME verification
 - **Low (red)**, constructed from adjacent evidence; flag for SME
 
+## Status reporting during drafting
+
+A 300-row matrix takes many minutes to draft. The user needs visible progress, not silence.
+
+**Post to user at the start of drafting:** the total scope, e.g. *"Drafting 312 requirement rows across 7 sections. Posting progress updates every 25 rows."*
+
+**Post to user every 25 rows drafted:** the running count and current section name, e.g. *"Progress: 50 of 312 rows drafted. Currently on section 2 (Asset Setup)."*
+
+**Post to user on notable events:**
+- When a row gets verdict `I` because no precedent matched: *"Row 47: no precedent above threshold. Marked I (Need More Info)."* Don't flood on this; summarize at section boundaries if there are many.
+- When a row triggered docs / Glean corroboration per Rule 25: *"Row 82 triggered docs corroboration (integration keyword). Pulling current docs..."* Again, keep brief.
+- When moving to a new section: *"Starting section 3 (Work Orders), rows 89-144."*
+
+The goal is the user can glance at the thread at any point and see where things are, what's normal, and what's an edge case. Don't over-report; one substantive line per 30-60 seconds of work is about right.
+
 ## Output checklist
 
 - [ ] Grounding note at the start identifies which `Spare General` precedent files were loaded
@@ -357,7 +416,17 @@ Structural only, see `references/voice-templates.md`. Specific products/numbers 
 
 **The fill is not complete until `review-rfp-draft` has run on the output file and returned a clean triage report.** This is not a separate optional step; it is part of the drafting workflow (Rule 20).
 
-When you finish the last row, immediately invoke `review-rfp-draft` on the filled file. Read the triage report. If there are blockers (especially repetition blockers from Rule 19, rows whose comments share >55% of text with a previous row), rewrite those specific rows and re-run review until the report is clean. Only then hand the file back to the user.
+When you finish the last row, **post to user:** *"✓ All 312 rows drafted. Running review now."*
+
+Immediately invoke `review-rfp-draft` on the filled file. Read the triage report. **Post to user** a compact summary of results, e.g. *"Review complete. 3 blockers, 8 SME-review items, 12 style flags."*
+
+If there are blockers (especially repetition blockers from Rule 19, rows whose comments share >55% of text with a previous row, or Rule 23/26/27 blockers from requirement-splicing, scratch-note leakage, or broken openers), **post to user** the specific fix plan, e.g. *"Addressing 3 blockers: row 47 and row 49 share 62% text (re-drafting row 49); row 82 has a Microsoft Dynamics 365 reference not in deal context (removing); row 103 opens with 'Spare's within...' (rewriting). Re-running review after fixes."*
+
+Rewrite the specific rows and re-run review until the report is clean. **Post to user** once clean: *"✓ Clean review. Matrix ready."*
+
+Only then hand the file back to the user.
+
+**Post to user at final handoff:** the file location and what the SE should do next, e.g. *"Matrix saved to <path>. Ready for your review before submission. The Internal Confidence and Internal Reasoning / Sources columns are labeled 'strip before submit' — remove those before sending to the agency."*
 
 Do not tell the user "here is your filled matrix, please review" without having run the review skill yourself.
 
