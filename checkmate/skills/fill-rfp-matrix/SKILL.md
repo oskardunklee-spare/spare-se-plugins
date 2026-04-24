@@ -350,14 +350,35 @@ Internal Reasoning must name a specific citation returned by `search_precedents`
 
 A reasoning note that does not include a citation returned by `search_precedents` is a bug, caught automatically by `review-rfp-draft`.
 
-### Voice
+### Voice (read every time; this is what Spare sounds like)
 
-- **Lead with `Spare` or `Spare's`.** First word.
+Drafts must read like Spare wrote them. Spare does NOT sound like a generic enterprise-software vendor. The `enforce-spare-voice` skill rewrites violations as a post-draft pass, but aim to produce Spare voice on the first try rather than leaning on that backstop.
+
+**The five tone principles:**
+
+1. **Active voice, concrete verbs.** *Spare tags each asset* (good). *Assets can be categorized with configurable attributes* (bad — passive + nominalization). Replace any "is [verb]ed by," "is reflected in," "is passed to," "is exchanged with" with a direct verb.
+2. **Short sentences. One idea per sentence.** Target 15-25 words. If a sentence has three commas, split it.
+3. **No hedge filler.** Ban `typically`, `fully documented`, `comprehensively`, `robustly`, `seamlessly`, `leveraging`, `robust`, `cutting-edge`, `best-in-class`, `powerful`, `elevate`. These are words RFP evaluators have learned to tune out.
+4. **Plain language for technical concepts.** *"The ERP owns the threshold"* beats *"capitalization threshold logic is typically owned in the ERP."* Same info, less words.
+5. **Confident, not salesy.** State what Spare does; skip the adjectives. *"Spare EAM has an Open API"* is a full sentence.
+
+**Before/after — these are from real v1.3.1/1.3.7 output failures:**
+
+| Generic vendor voice (bad) | Spare voice (good) |
+|---|---|
+| *"Spare EAM supports categorizing assets with configurable attributes that can flag capitalization status."* | *"Spare EAM tags each asset with its capitalization status via a configurable attribute."* |
+| *"Spare EAM supports integration with ERP systems via the fully documented Open API. The specific integration will be scoped during discovery to confirm data flows for asset master, purchase orders, receipts, and inventory transactions."* | *"Spare's Open API covers asset master, purchase orders, receipts, and inventory. We'll confirm the specific mappings with the agency's IT team at implementation."* |
+| *"The platform exposes a public Open API covering core entities."* | *"Spare EAM has a public Open API covering every core entity."* |
+
+**Other voice rules:**
+
+- **Lead with `Spare`, `Spare's`, or `Spare [Product]`.** First word. If forcing "Spare's" creates broken grammar (e.g., *"Spare's within Spare EAM, ..."*), rewrite as *"Within Spare EAM, ..."* or *"Spare EAM supports ..."* per Rule 27.
 - **No em dashes** (`U+2014`).
-- **Third-person, product-named.** Use canonical product names from the catalog above.
-- **Specific and quantified only when sourced.** Numbers come from live sources, not from this file.
-- **Honest about gaps, when the gap is sourced.**
-- **Weave in deal context** from the deal-context artifact.
+- **No quoted-requirement preamble + colon-intro** (Rule 28): never write *"Spare [verb] '<requirement>' in Spare EAM: [answer]"*. Just write the answer.
+- **No third-party integration names** not in the deal-context artifact (Rule 24). "The agency's ERP" unless deal context names it.
+- **Weave in deal context** from the deal-context artifact where it adds signal.
+
+If in doubt, write the draft, then re-read it and ask: *"Does this sound like Spare or any vendor?"* If it could come from any vendor, rewrite. See `references/voice-templates.md` for the full reference and `enforce-spare-voice` (automatic backstop) for the post-draft rewrite pass.
 
 ### Answer registers
 
@@ -414,9 +435,13 @@ The goal is the user can glance at the thread at any point and see where things 
 
 ## Finishing a fill
 
-**The fill is not complete until `review-rfp-draft` has run on the output file and returned a clean triage report.** This is not a separate optional step; it is part of the drafting workflow (Rule 20).
+**The fill is not complete until `enforce-spare-voice` AND `review-rfp-draft` have both run on the output file, in that order, and review has returned a clean triage report.** This is not a separate optional step; it is part of the drafting workflow (Rule 20).
 
-When you finish the last row, **post to user:** *"✓ All 312 rows drafted. Running review now."*
+When you finish the last row, **post to user:** *"✓ All 312 rows drafted. Enforcing Spare voice now, then running review."*
+
+Invoke `enforce-spare-voice` first on the filled file. That skill scans every comment against Spare tone rules (active verbs, short sentences, no hedge filler, no vendor-register phrases, no quoted-requirement splicing) and rewrites violations in Spare voice. It handles the quality-of-tone layer that the drafting loop can still get wrong despite the inline voice guidance. **Post to user** the voice-enforcement summary when it completes: row counts scanned and rewritten, plus top 3 rewrites.
+
+Then invoke `review-rfp-draft` on the voice-enforced file. This handles structural, citation, and blocker checks (repetition, requirement-splicing, third-party-name leakage, unsourced claims, etc.).
 
 Immediately invoke `review-rfp-draft` on the filled file. Read the triage report. **Post to user** a compact summary of results, e.g. *"Review complete. 3 blockers, 8 SME-review items, 12 style flags."*
 
