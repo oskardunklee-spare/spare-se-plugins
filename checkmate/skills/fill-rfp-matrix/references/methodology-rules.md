@@ -156,3 +156,23 @@ Default framing for integration and API questions, regardless of category: *"Spa
 Better to be safe than to commit Spare to a specific integration we haven't confirmed. When in doubt, say "the agency's ERP" / "the agency's telematics provider" / "the agency's fare system" / etc. — not the product's name.
 
 `review-rfp-draft` maintains a list of common transit-adjacent and enterprise third-party system names across categories (ERP / GL: Microsoft Dynamics 365, Workday, SAP, NetSuite, PeopleSoft, Oracle; scheduling / paratransit: Trapeze, Ecolane, RouteMatch, myAvail; fare / payment: Cubic, Moneris, Genfare, Stripe; telematics / AVL: Geotab, Samsara, INIT, Clever Devices; CRM / ITSM: Salesforce, HubSpot, ServiceNow; implementation partners: Crowe, Deloitte, Accenture; plus others added as new RFPs introduce them) and cross-checks every filled comment against the loaded deal-context artifact. Any named system that appears in a comment but not in deal context is flagged as a blocker.
+
+## Rule 25: Triggered corroboration for precedent staleness and product-change risk
+
+The precedent corpus is the primary source, but precedents can go stale as the product evolves. Rule 25 defines when `fill-rfp-matrix` must reach beyond the corpus to confirm current product state via Spare docs MCP and Glean.
+
+**Trigger Spare docs lookup when ANY of these is true for a row:**
+
+- Top precedent similarity is below 0.5 (weak match; precedents alone probably don't cover the row cleanly)
+- All matching precedents are more than 12 months old (staleness risk)
+- The row is in a product-change-sensitive category: integration / API / interoperability, security / compliance / audit, roadmap / future-state, eligibility / ADA
+
+**Trigger Glean / Notion lookup when ANY of these is true:**
+
+- `search_precedents` returned no matches above threshold
+- The row names a specific competitor or asks for competitive positioning
+- The row asks about internal roadmap, product strategy, or launch timing
+
+When none of the triggers fire, the precedent is the source of truth and drafting proceeds from it alone. This keeps fills fast on rows where precedent coverage is strong and recent, while catching the staleness and drift failure modes that would otherwise let outdated answers through.
+
+`review-rfp-draft` validates that when a trigger fired, the Internal Reasoning column either (a) cites a Spare docs URL / Glean result / Notion URL in addition to the precedent, or (b) marks the verdict as `I` (Need More Info). A triggered row with only a precedent citation is flagged as a blocker.

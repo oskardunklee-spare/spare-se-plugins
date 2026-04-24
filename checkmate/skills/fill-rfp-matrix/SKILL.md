@@ -269,11 +269,27 @@ Yellow-highlighted bold headers. A row with no citation in the reasoning column 
 
    Every row's Internal Reasoning column must cite at least one of the `source_file` + `source_row` identifiers returned by this call. If you cite a precedent that did not appear in the returned matches, `review-rfp-draft` will flag the row as a blocker.
 
-2. **Spare documentation MCP**, for feature corroboration and "not currently available" checks. Run after Step 1, to confirm the precedent is still accurate given any recent product changes. `search_spare_documentation` with keywords from the row; read relevant `/sales-enablement/*.mdx`, `/customer-enablement/*.mdx`, `/internal-changelog/*.mdx` pages.
+2. **Spare documentation MCP corroboration (triggered per row, per Rule 25).** Required when ANY of these is true for the row:
+   - The top `search_precedents` match has `similarity < 0.5` (weak match; precedents alone probably don't answer the row cleanly)
+   - All matching precedents are from more than 12 months ago (staleness risk as product evolves)
+   - The requirement falls into a product-change-sensitive category. Scan the requirement text (case-insensitive) for these keyword groups:
+     - **Integration / API:** `integration`, `interoperability`, `API`, `interface`, `exchange`, `feed`, `SSO`, `webhook`, `connector`, `import`, `export`
+     - **Security / compliance:** `security`, `compliance`, `audit`, `SOC`, `HIPAA`, `PCI`, `FIPS`, `PII`, `encryption`, `access control`, `penetration`
+     - **Eligibility / ADA:** `eligibility`, `ADA`, `paratransit` (when in an eligibility / applications / assessment context)
+     - **Roadmap / future-state:** `roadmap`, `future`, `planned`, `upcoming`, `next release`, `coming soon`
+   
+   When triggered: call `search_spare_documentation` with keywords from the row and read relevant `/sales-enablement/*.mdx`, `/customer-enablement/*.mdx`, `/internal-changelog/*.mdx` pages. Use the returned content to confirm or revise the precedent-based answer. Cite any doc URL used in the Internal Reasoning column alongside the precedent citation.
+   
+   When NOT triggered (precedent is strong, recent, and the requirement is in a category with low drift risk): proceed from the precedent alone. The precedent is the source of truth.
 
-3. **Notion and Glean**, for tribal knowledge, Klue battlecards, or roadmap questions the precedents and docs do not answer.
+3. **Notion and Glean (triggered per row, per Rule 25).** Required when ANY of these is true:
+   - `search_precedents` returned no matches above threshold (the row would otherwise be `I`)
+   - The row names a specific competitor or requests competitive positioning (Klue battlecards via Glean)
+   - The row asks about internal roadmap, product strategy, or launch timing
+   
+   When triggered: search via the Glean and Notion connectors. Cite any Klue battlecard or Notion page URL in the Internal Reasoning column.
 
-4. **Verdict is `I` only when** `search_precedents` returned no matches AND the docs MCP is silent on the specific capability. Never `N` from silence. Never "not a Spare deal" at the row level.
+4. **Verdict is `I` only when** `search_precedents` returned no matches AND (if triggered) the docs MCP and Glean are silent on the specific capability. Never `N` from silence. Never "not a Spare deal" at the row level.
 
 ### `corpus_stats` is already your grounding note
 
