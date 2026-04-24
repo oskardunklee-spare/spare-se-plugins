@@ -78,25 +78,40 @@ Second, [tool specific to the capability, sourced].
 Third, [tool specific to the capability, sourced].
 ```
 
-### Integration / API answer template (default for integration asks)
+### Integration / API answer template (default for ALL integration asks)
 
-For "can you integrate with [X]," "do you support API connectivity for [Y]," "how does your system exchange data with the agency's ERP / GL / fare / scheduling system" requirements. The default framing is **capability + scope**, not a commitment to a specific partner product.
+**This template applies to every integration category, not just ERP.** Use it for any requirement about exchanging data with an external system: ERP, GL, fare, payment processor, scheduling, AVL / telematics, GIS, CRM, ITSM, eligibility, identity / SSO, document management, or anything else. The default framing is **capability + scope**, not a commitment to a specific partner product.
 
 ```
-Spare exposes a public Open API covering [specific entities named in the sourced precedent: work orders, assets, parts, duties, requests, etc.]. [Optional specifics from the precedent: auth method, webhook support, rate limits, sync cadence.] Specific integration scope with the agency's [ERP / GL / fare / scheduling / GIS] system is confirmed during discovery and implementation.
+Spare exposes a public Open API covering [specific entities named in the sourced precedent: work orders, assets, parts, duties, requests, etc.]. [Optional specifics from the precedent: auth method, webhook support, rate limits, sync cadence.] Specific integration scope with the agency's [integration category, e.g. ERP, fare system, telematics provider, scheduling system, GIS, etc.] is confirmed during discovery and implementation.
 ```
 
-**Do not name a specific third-party product (Microsoft Dynamics 365, Workday, SAP, NetSuite, PeopleSoft, Oracle, Trapeze, Ecolane, RouteMatch, myAvail, Cubic, Moneris, Geotab, etc.) in the comment unless that product is explicitly named in the current deal's `<agency>-deal-context.md` artifact.**
+**Do not name a specific third-party product in the comment unless that product is explicitly named in the current deal's `<agency>-deal-context.md` artifact.** This applies to every integration type, not just ERPs:
 
-Precedents in the corpus are from specific past agencies and often carry customer-specific integration names (e.g. MTD's Dynamics 365 implementation, Laramie's specific ERP). Those names must not be carried into a new draft for a different agency. The review skill flags any unsourced third-party name as a blocker.
+| Category | Common names to gate behind deal-context |
+|---|---|
+| ERP / GL | Microsoft Dynamics 365, Workday, SAP, NetSuite, PeopleSoft, Oracle |
+| Scheduling / paratransit | Trapeze, Ecolane, RouteMatch, myAvail |
+| Fare / payment | Cubic, Moneris, Genfare, Stripe |
+| Telematics / AVL | Geotab, Samsara, INIT, Clever Devices |
+| CRM / ITSM | Salesforce, HubSpot, ServiceNow |
+| Implementation partners | Crowe, Deloitte, Accenture, etc. |
+
+Precedents in the corpus are from specific past agencies and often carry customer-specific integration names (e.g. MTD's Dynamics 365 implementation, a specific agency's fare system, a specific telematics provider). Those names must not be carried into a new draft for a different agency. The review skill flags any unsourced third-party name as a blocker, regardless of integration type.
 
 Good default when the deal context doesn't name a specific system:
 
-> *"Spare exposes a public Open API covering work orders, assets, parts inventory, vendors, and purchase orders. The API supports REST authentication, webhook events, and bulk export. Specific integration scope with the agency's ERP is confirmed during implementation."*
+> *(ERP question)* *"Spare exposes a public Open API covering work orders, assets, parts inventory, vendors, and purchase orders. The API supports REST authentication, webhook events, and bulk export. Specific integration scope with the agency's ERP is confirmed during implementation."*
+
+> *(Telematics question)* *"Spare consumes real-time GPS and vehicle-ID feeds from the agency's AVL / telematics provider via the Open API for live dispatch and rider ETAs. Specific integration with the agency's telematics system is confirmed during implementation."*
+
+> *(Fare question)* *"Spare's Open API exposes booking, pricing, and payment-status events for integration with the agency's fare system. Specific integration scope is confirmed during implementation."*
 
 Good when the deal context DOES name a system (e.g. MTD's deal-context.md lists "Microsoft Dynamics 365"):
 
 > *"Spare EAM exchanges work order and asset-lifecycle events with MTD's Microsoft Dynamics 365 via Spare's Open API, with specific field mappings confirmed during discovery."*
+
+Better to say "the agency's X" and let implementation scope the specifics than to commit Spare to a named integration we haven't confirmed.
 
 ### ERP-partner template
 
