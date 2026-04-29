@@ -26,6 +26,34 @@ The left column is what generic-vendor Claude produces. The right column is what
 | *"Spare supports flexible record search across standard operators and partial-match scenarios, with role-based access control enforced across search results for compliance with data access policies."* | *"Spare EAM's search supports equals, not-equals, ranges, partial match, and wildcards on every core entity. Search results respect the user's role permissions."* |
 | *"This capability will be addressed as a configuration or custom enhancement during implementation, subject to discovery and scoping with the agency's technical stakeholders."* | *"We'll scope this with the agency at implementation."* (Or, if the capability is already in the product, say what Spare does; skip the discovery language entirely.) |
 
+### Opener variety: Spare must be prominent, not always first
+
+A common failure mode: every row opens with `Spare EAM ___`, making the matrix read as a stamped template even when each individual comment is correct. Spare must be a prominent named entity in the opening clause, but does not have to be the literal first word.
+
+**Valid opener patterns. Rotate these across consecutive rows.**
+
+| Pattern | Example |
+|---|---|
+| `Spare [Product] [verb]` | *Spare EAM tags each asset with its capitalization status.* |
+| `Spare's [feature] [verb]` | *Spare's Open API covers asset master, work orders, and parts inventory.* |
+| `Within Spare [Product], [subject] [verb]` | *Within Spare EAM, work orders flow from intake through completion with status timestamps.* |
+| `In Spare's [feature], [subject] [verb]` | *In Spare's Open API, asset events stream as webhooks and pull endpoints.* |
+| `Each [entity] in Spare [Product]` | *Each work order in Spare EAM carries a custodian, asset, parts list, and labor record.* |
+| `[Entity] in Spare [Product] [verb]` | *Asset lifecycle data in Spare EAM follows the agency's depreciation schedule.* |
+| `Through Spare's [feature]` | *Through Spare's role-based access control, sensitive fields like pay rates are visible only to authorized roles.* |
+
+**Rule of thumb:** in any 5 consecutive rows of the same section, use at least 2 different opener patterns. Three rows in a row that all start with `Spare EAM ___` is a sign of stamping; rotate.
+
+**Banned (non-opener-Spare):** the answer must still anchor on Spare somewhere prominent. These are NOT valid:
+
+- `The platform [verb]` (vague subject, doesn't name Spare)
+- `The system supports` (same)
+- `Out of the box, ___` (filler opener)
+- `Yes, ___` or `No, ___` (verdict opener)
+- Generic noun-first openers that don't name Spare in the first ~5-7 words: *"Barcode scanning supports..."*, *"Asset lifecycle tracking is..."*
+
+If `Spare` doesn't appear within the first 5-7 words of the opening clause, rewrite.
+
 ### Banned vendor-register phrases (added to the Never-use list below)
 
 Any of these showing up in a draft is a rewrite trigger:

@@ -8,7 +8,7 @@
       "name": "checkmate",
       "source": "./checkmate",
       "description": "Draft and QA RFP compliance matrices in Spare's voice, with deterministic per-row precedent lookup over Spare's past-RFP corpus. Persistent per-user cache with change-detection against Drive: first fill walks Spare General once (~20 min), every fill after that starts in seconds unless Drive content has changed. Pure-stdlib MCP server does TF-IDF per-row matching. Pre-flight connector check, status messaging, automatic row-height fixes. Replaces Responsive for RFP responses.",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "category": "solutions-engineering",
       "keywords": ["rfp", "compliance", "matrix", "solutions-engineering", "spare"]
     }

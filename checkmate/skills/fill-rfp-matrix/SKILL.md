@@ -372,7 +372,21 @@ Drafts must read like Spare wrote them. Spare does NOT sound like a generic ente
 
 **Other voice rules:**
 
-- **Lead with `Spare`, `Spare's`, or `Spare [Product]`.** First word. If forcing "Spare's" creates broken grammar (e.g., *"Spare's within Spare EAM, ..."*), rewrite as *"Within Spare EAM, ..."* or *"Spare EAM supports ..."* per Rule 27.
+- **Spare must be a prominent named entity in the opening clause, but not always the first word. Vary openers across consecutive rows.** If 50+ rows all start with `Spare EAM ___`, the matrix reads as a stamped template even when each comment is individually correct.
+
+  Valid opener patterns (rotate these across rows so the matrix doesn't read robotic):
+  
+  - `Spare [Product] [verb]...` — *"Spare EAM tags each asset..."*
+  - `Spare's [feature] [verb]...` — *"Spare's Open API covers..."*
+  - `Within Spare [Product], [subject] [verb]...` — *"Within Spare EAM, work orders flow..."*
+  - `In Spare's [feature], [subject] [verb]...` — *"In Spare's Open API, asset events..."*
+  - `Each [entity] in Spare [Product]...` — *"Each work order in Spare EAM carries..."*
+  - `[Entity] in Spare [Product] [verb]...` — *"Asset lifecycle data in Spare EAM follows..."*
+  - `Through Spare's [feature], ...` — *"Through Spare's role-based access control, ..."*
+  
+  Rule of thumb: in any 5 consecutive rows of the same section, use at least 2 different opener patterns. Three rows in a row that all start with `Spare EAM ___` is a sign you're stamping; rotate.
+  
+  The literal-first-word `Spare` openers are still valid and useful; they're just not the only valid pattern. Mix them with the alternates.
 - **No em dashes** (`U+2014`).
 - **No quoted-requirement preamble + colon-intro** (Rule 28): never write *"Spare [verb] '<requirement>' in Spare EAM: [answer]"*. Just write the answer.
 - **No third-party integration names** not in the deal-context artifact (Rule 24). "The agency's ERP" unless deal context names it.

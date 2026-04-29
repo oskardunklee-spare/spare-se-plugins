@@ -54,8 +54,25 @@ Rewrite any row whose comment matches one or more of:
 5. **Is predominantly passive voice** — more than 60% of clauses use passive constructions. Rewrite to active.
 6. **Strings together three or more enterprise-noun lists without purpose** — e.g., "for asset master, purchase orders, receipts, and inventory transactions for procurement and payables" when the agency asked a specific narrow question.
 7. **Is long and wordy for what it says** — if the same content fits in 60% of the word count, the original is padded and should be tightened.
+8. **Sits in a stretch of monotonous openers** — any row whose first 2 words match the previous row's first 2 words, AND those same first 2 words also match the row before that. Three or more consecutive `Spare EAM ___` openers is a stamping signal; rotate the second or third row to one of the alternate opener patterns.
 
 Rows that are already in Spare voice pass through unchanged. Don't rewrite for the sake of rewriting.
+
+## Opener-rotation rules
+
+When rewriting (or drafting in the first place via fill-rfp-matrix), use this rotation strategy across consecutive rows in the same section:
+
+- **Track the previous 2 rows' openers.** If a new row would use the same first 2 words as the previous one, swap to a different opener pattern.
+- **Aim for at least 2 distinct patterns within any 5 consecutive rows.** Three identical-pattern rows in a row is a blocker.
+- **Valid alternates to `Spare [Product]` / `Spare's [feature]`:**
+  - `Within Spare [Product], [subject] [verb]...`
+  - `In Spare's [feature], [subject] [verb]...`
+  - `Each [entity] in Spare [Product]...`
+  - `[Entity] in Spare [Product] [verb]...`
+  - `Through Spare's [feature], ...`
+
+  See `voice-templates.md` "Opener variety" section for the full list with examples.
+- **Spare must still appear within the first 5-7 words of the opening clause.** "The platform" / "The system" / "Out of the box" / verdict-only openers are still banned.
 
 ## How to rewrite
 
